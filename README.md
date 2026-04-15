@@ -128,10 +128,10 @@ You will be prompted for the become (sudo) password. This will install and confi
 
 The playbook automatically fetches the kubeconfig, updates the server address to your API endpoint, and merges it into `~/.kube/config` under the context name `k3s-ansible`.
 
-To use a custom context/cluster name (e.g. `k3s-homelab`), pass the `cluster_context` variable:
+To rename the context to something more meaningful (e.g. `k3s-homelab`), run:
 
 ```bash
-ansible-playbook -i k3s-config.yml k3s-ansible/playbooks/site.yml --ask-become-pass -e "cluster_context=k3s-homelab"
+kubectl config rename-context k3s-ansible k3s-homelab
 ```
 
 ### 8. Verify the cluster
@@ -139,13 +139,13 @@ ansible-playbook -i k3s-config.yml k3s-ansible/playbooks/site.yml --ask-become-p
 Switch to the homelab context and check the nodes:
 
 ```bash
-kubectl config use-context k3s-ansible
+kubectl config use-context k3s-homelab
 ```
 
-Or if you set a custom context name:
+Or if you kept the default context name:
 
 ```bash
-kubectl config use-context k3s-homelab
+kubectl config use-context k3s-ansible
 ```
 
 Then verify:
