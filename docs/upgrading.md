@@ -55,7 +55,7 @@ If `AGENT_IPS` is not set, the workflow behaves as single-node and only upgrades
 
 When `AGENT_IPS` is set, the workflow supports multi-node clusters. The `upgrade.yml` playbook will:
 
-- Upgrade server nodes **one at a time** (to avoid etcd instability)
+- Upgrade master nodes **one at a time** (to avoid etcd instability)
 - Upgrade all agent nodes **in parallel**
 
 However, the workflow **does not drain or uncordon nodes**. Each node will experience a brief interruption when K3s restarts. If you need zero downtime, use the manual steps described in the [Zero downtime upgrades](#zero-downtime-upgrades) section instead.
@@ -106,7 +106,7 @@ The `VERSION` column should reflect the new K3s version. Repeat steps 1–3 for 
 
 ## Option 3: Zero downtime upgrades (manual)
 
-**This repo is designed for a single-node cluster.** With a single server node, true zero downtime is not possible — when K3s restarts during an upgrade, the control plane and any running workloads on that node are briefly interrupted. If you have no active workloads at the time of upgrade, this is unlikely to be noticeable.
+**This repo is designed for a single-node cluster.** With a single master node, true zero downtime is not possible — when K3s restarts during an upgrade, the control plane and any running workloads on that node are briefly interrupted. If you have no active workloads at the time of upgrade, this is unlikely to be noticeable.
 
 ### Multi-node clusters
 
@@ -128,14 +128,14 @@ k3s_cluster:
 
 The `upgrade.yml` playbook handles server and agent nodes differently:
 
-- **Server nodes** are upgraded **one at a time** (`serial: 1`). This is intentional — etcd can only handle one node transitioning at a time, so upgrading servers in parallel would risk cluster instability.
+- **Master nodes** are upgraded **one at a time** (`serial: 1`). This is intentional — etcd can only handle one node transitioning at a time, so upgrading master nodes in parallel would risk cluster instability.
 - **Agent nodes** are upgraded **all in parallel**. Agents don't run etcd so there is no such constraint.
 
 This means running the playbook as-is will handle the ordering correctly. However, the playbook does **not** drain or uncordon nodes — workloads on a node will be briefly interrupted when K3s restarts during the upgrade.
 
 #### Zero downtime: manual drain/uncordon
 
-If you need zero downtime, you must drain each node before upgrading it and uncordon it afterwards. The safe order is: **server node first, then each agent**.
+If you need zero downtime, you must drain each node before upgrading it and uncordon it afterwards. The safe order is: **master node first, then each agent**.
 
 **Master node:**
 
@@ -157,4 +157,4 @@ kubectl get nodes
 
 Only move to the next agent once the previous one is back to `Ready`.
 
-> **Note:** This repo's automated GitHub Actions upgrade workflow is configured for a single server node and does not handle the multi-node drain/uncordon sequence. For multi-node clusters, the manual steps above are recommended.
+> **Note:** This repo's automated GitHub Actions upgrade workflow is configured for a single master node and does not handle the multi-node drain/uncordon sequence. For multi-node clusters, the manual steps above are recommended.

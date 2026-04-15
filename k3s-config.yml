@@ -3,9 +3,11 @@ k3s_cluster:
   children:
     server:
       hosts:
-        <YOUR_SERVER_IP>:
+        <YOUR_MASTER_NODE_IP>:
     agent:
-      hosts: {} 
+      hosts: 
+        <YOUR_WORKER_NODE_1_IP>:
+        <YOUR_WORKER_NODE_2_IP>:        
 
   vars:
     ansible_user: <YOUR_UBUNTU_USERNAME>
