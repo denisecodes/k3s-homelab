@@ -1,0 +1,55 @@
+---
+- name: Baseline server setup
+  hosts: homelab
+  become: true
+  tasks:
+    - name: Update and upgrade packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: Install essential packages
+      apt:
+        name:
+          - curl
+          - git
+          - vim
+          - ufw
+          - fail2ban
+          - unattended-upgrades
+        state: present
+
+    - name: Configure UFW default deny
+      ufw:
+        state: enabled
+        policy: deny
+        direction: incoming
+
+    - name: Allow SSH
+      ufw:
+        rule: allow
+        port: 22
+        proto: tcp
+
+    - name: Allow K3s API
+      ufw:
+        rule: allow
+        port: 6443
+        proto: tcp
+
+    - name: Disable root SSH login
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^PermitRootLogin'
+        line: 'PermitRootLogin no'
+      notify: restart sshd
+
+    - name: Set timezone to London
+      timezone:
+        name: Europe/London
+
+  handlers:
+    - name: restart sshd
+      service:
+        name: ssh
+        state: restarted
