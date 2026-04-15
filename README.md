@@ -108,6 +108,8 @@ You will be prompted for the become (sudo) password of the remote user. The play
 
 Edit `k3s-config.yml` and fill in your details:
 
+**Single node (default):**
+
 ```yaml
 ---
 k3s_cluster:
@@ -127,7 +129,39 @@ k3s_cluster:
     extra_server_args: "--disable traefik"
 ```
 
-Replace `<YOUR_SERVER_IP>` with the server IP from step 1, `<YOUR_UBUNTU_USERNAME>` with your username, and `<GENERATE_A_SECURE_TOKEN_HERE>` with a secure token (e.g. generated via `openssl rand -hex 32`).
+**Multi-node (server + agents):**
+
+If you have additional machines to use as agent (worker) nodes, add their IP addresses under `agent.hosts`:
+
+```yaml
+---
+k3s_cluster:
+  children:
+    server:
+      hosts:
+        <YOUR_MASTER_NODE_IP>:   # control plane (master) node
+    agent:
+      hosts:
+        <YOUR_WORKER_NODE_1_IP>:   # worker node 1
+        <YOUR_WORKER_NODE_2_IP>:   # worker node 2
+
+  vars:
+    ansible_user: <YOUR_UBUNTU_USERNAME>
+    ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+    k3s_version: v1.33.10+k3s1
+    token: "<GENERATE_A_SECURE_TOKEN_HERE>"
+    api_endpoint: "{{ hostvars[groups['server'][0]]['ansible_host'] | default(groups['server'][0]) }}"
+    extra_server_args: "--disable traefik"
+```
+
+Each agent node must have your SSH key copied to it (repeat step 2 for each additional machine) and be accessible with the same `ansible_user`.
+
+For both setups, replace the following placeholders:
+
+- `<YOUR_SERVER_IP>` / `<YOUR_MASTER_NODE_IP>` — the IP of your control plane (master) node from step 1
+- `<YOUR_WORKER_NODE_1_IP>`, `<YOUR_WORKER_NODE_2_IP>`, etc. — the IPs of any additional worker nodes (multi-node only)
+- `<YOUR_UBUNTU_USERNAME>` — your username on the server(s)
+- `<GENERATE_A_SECURE_TOKEN_HERE>` — a secure random token (e.g. `openssl rand -hex 32`); this must be the same across all nodes
 
 ### 7. Install K3s
 
