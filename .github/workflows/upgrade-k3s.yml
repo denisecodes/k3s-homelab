@@ -1,0 +1,119 @@
+name: K3s upgrade
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      k3s_version:
+        description: 'K3s version to upgrade to (e.g. v1.33.10+k3s1)'
+        required: true
+
+jobs:
+  handle-reject:
+    if: >
+      github.event_name == 'issue_comment' &&
+      contains(github.event.comment.body, '/reject') &&
+      contains(github.event.issue.labels.*.name, 'k3s-upgrade')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              state: 'closed',
+              state_reason: 'not_planned'
+            });
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: 'Upgrade rejected. Closing issue.'
+            });
+
+  upgrade:
+    if: >
+      (github.event_name == 'issue_comment' &&
+      contains(github.event.comment.body, '/upgrade') &&
+      contains(github.event.issue.labels.*.name, 'k3s-upgrade')) ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Determine upgrade version
+        id: version
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let version;
+            if (context.eventName === 'workflow_dispatch') {
+              version = '${{ github.event.inputs.k3s_version }}';
+            } else {
+              // Extract version from issue title (format: "... → v1.32.0+k3s1")
+              const title = context.payload.issue.title;
+              const match = title.match(/→\s*(v[\d.]+\+k3s\d+)/);
+              if (match) {
+                version = match[1];
+              } else {
+                core.setFailed('Could not determine upgrade version from issue title');
+                return;
+              }
+            }
+            core.setOutput('k3s_version', version);
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Install Ansible
+        run: pip install ansible
+
+      - name: Initialise submodules
+        run: git submodule update --init --recursive
+
+      - name: Update k3s_version in config
+        run: |
+          sed -i "s/k3s_version:.*/k3s_version: ${{ steps.version.outputs.k3s_version }}/" \
+            k3s-config.yml
+
+      - name: Run upgrade playbook
+        run: |
+          ansible-playbook k3s-ansible/playbooks/upgrade.yml \
+            -i k3s-config.yml
+
+      - name: Commit updated version
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add k3s-config.yml
+          git commit -m "chore: upgrade K3s to ${{ steps.version.outputs.k3s_version }}"
+          git push
+
+      - name: Comment and close issue
+        if: github.event_name == 'issue_comment'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ steps.version.outputs.k3s_version }}';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `Upgrade to ${version} completed successfully.`
+            });
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              state: 'closed',
+              state_reason: 'completed'
+            });

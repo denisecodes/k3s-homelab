@@ -1,0 +1,128 @@
+name: K3s upgrade check
+
+on:
+  schedule:
+    - cron: '0 9 1 * *'  # 1st of every month at 9am UTC
+  workflow_dispatch:
+
+jobs:
+  check-upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Get current version from config
+        id: current
+        run: |
+          CURRENT=$(grep 'k3s_version' k3s-config.yml \
+            | awk '{print $2}' | tr -d '"')
+          echo "version=$CURRENT" >> $GITHUB_OUTPUT
+          CURRENT_MINOR=$(echo "$CURRENT" | sed 's/v//' | cut -d. -f1,2)
+          echo "minor=$CURRENT_MINOR" >> $GITHUB_OUTPUT
+
+      - name: Get latest K3s release and determine recommended version
+        id: recommend
+        run: |
+          # Fetch all stable releases (non-rc, non-prerelease)
+          RELEASES=$(curl -s "https://api.github.com/repos/k3s-io/k3s/releases?per_page=100" \
+            | jq -r '[.[] | select(.prerelease == false and (.tag_name | test("rc|alpha|beta") | not))] | .[].tag_name')
+
+          # Get the latest minor version
+          LATEST_MINOR=$(echo "$RELEASES" | head -1 | sed 's/v//' | cut -d. -f1,2)
+          LATEST_MAJOR=$(echo "$LATEST_MINOR" | cut -d. -f1)
+          LATEST_MINOR_NUM=$(echo "$LATEST_MINOR" | cut -d. -f2)
+
+          # Calculate target: 2 minor versions behind latest
+          TARGET_MINOR_NUM=$((LATEST_MINOR_NUM - 2))
+          TARGET_MINOR="${LATEST_MAJOR}.${TARGET_MINOR_NUM}"
+
+          # Find the latest patch release for the target minor version
+          RECOMMENDED=$(echo "$RELEASES" | grep "^v${TARGET_MINOR}\." | head -1)
+
+          echo "latest_minor=$LATEST_MINOR" >> $GITHUB_OUTPUT
+          echo "target_minor=$TARGET_MINOR" >> $GITHUB_OUTPUT
+          echo "version=$RECOMMENDED" >> $GITHUB_OUTPUT
+
+      - name: Check if upgrade is needed
+        id: check
+        run: |
+          CURRENT="${{ steps.current.outputs.version }}"
+          RECOMMENDED="${{ steps.recommend.outputs.version }}"
+
+          if [ -z "$RECOMMENDED" ]; then
+            echo "No recommended version found"
+            echo "needed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          if [ "$CURRENT" = "$RECOMMENDED" ]; then
+            echo "Already on recommended version"
+            echo "needed=false" >> $GITHUB_OUTPUT
+          else
+            echo "Upgrade available: $CURRENT -> $RECOMMENDED"
+            echo "needed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for existing open upgrade issues
+        if: steps.check.outputs.needed == 'true'
+        id: existing
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'k3s-upgrade'
+            });
+            core.setOutput('exists', issues.data.length > 0 ? 'true' : 'false');
+
+      - name: Determine upgrade path
+        if: steps.check.outputs.needed == 'true' && steps.existing.outputs.exists == 'false'
+        id: path
+        run: |
+          CURRENT_MINOR=${{ steps.current.outputs.minor }}
+          TARGET_MINOR=${{ steps.recommend.outputs.target_minor }}
+          CURRENT_MINOR_NUM=$(echo "$CURRENT_MINOR" | cut -d. -f2)
+          TARGET_MINOR_NUM=$(echo "$TARGET_MINOR" | cut -d. -f2)
+
+          STEPS=""
+          for ((i=CURRENT_MINOR_NUM+1; i<=TARGET_MINOR_NUM; i++)); do
+            STEPS="${STEPS}- v$(echo $CURRENT_MINOR | cut -d. -f1).${i}\n"
+          done
+          echo "steps=$STEPS" >> $GITHUB_OUTPUT
+
+      - name: Create upgrade issue
+        if: steps.check.outputs.needed == 'true' && steps.existing.outputs.exists == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const current = '${{ steps.current.outputs.version }}';
+            const recommended = '${{ steps.recommend.outputs.version }}';
+            const latestMinor = '${{ steps.recommend.outputs.latest_minor }}';
+            const upgradePath = '${{ steps.path.outputs.steps }}';
+
+            const body = `A new K3s upgrade is recommended.
+
+            **Current version:** ${current}
+            **Recommended version:** ${recommended}
+            **Latest available:** v${latestMinor} (staying 2 minor versions behind)
+
+            **Note:** You can only upgrade one minor version at a time. Upgrade path:
+            ${upgradePath}
+            Run each step separately and verify before proceeding to the next.
+
+            ---
+
+            **Actions:**
+            - Comment \`/upgrade\` to trigger the upgrade to ${recommended}
+            - Comment \`/reject\` to close this issue without upgrading`;
+
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `K3s upgrade available: ${current} → ${recommended}`,
+              body: body,
+              labels: ['k3s-upgrade']
+            })
