@@ -126,42 +126,29 @@ ansible-playbook -i k3s-config.yml k3s-ansible/playbooks/site.yml --ask-become-p
 
 You will be prompted for the become (sudo) password. This will install and configure K3s on your server.
 
-### 8. Configure kubectl access
+The playbook automatically fetches the kubeconfig, updates the server address to your API endpoint, and merges it into `~/.kube/config` under the context name `k3s-ansible`.
 
-Once K3s is installed, copy the kubeconfig from the server to your local machine:
-
-```bash
-scp user@192.168.1.100:~/.kube/config ~/.kube/homelab-config
-```
-
-K3s generates the config with `server: https://127.0.0.1:6443`, which points to localhost. Since you're running `kubectl` from a different machine, you need to update this to the server's actual IP address:
+To use a custom context/cluster name (e.g. `k3s-homelab`), pass the `cluster_context` variable:
 
 ```bash
-sed -i '' 's|127.0.0.1|192.168.1.100|g' ~/.kube/homelab-config
+ansible-playbook -i k3s-config.yml k3s-ansible/playbooks/site.yml --ask-become-pass -e "cluster_context=k3s-homelab"
 ```
 
-Replace `192.168.1.100` with your server's IP.
+### 8. Verify the cluster
 
-### 9. Merge into your default kubeconfig
-
-Rather than managing a separate config file, merge the homelab config into your default `~/.kube/config` so you can switch between clusters using `kubectl config use-context`:
+Switch to the homelab context and check the nodes:
 
 ```bash
-# Back up your existing config first
-cp ~/.kube/config ~/.kube/config.bak
-
-# Merge the configs
-KUBECONFIG=~/.kube/config:~/.kube/homelab-config kubectl config view --flatten > ~/.kube/config.merged
-mv ~/.kube/config.merged ~/.kube/config
+kubectl config use-context k3s-ansible
 ```
 
-You can now switch to the homelab context:
+Or if you set a custom context name:
 
 ```bash
-kubectl config use-context default
+kubectl config use-context k3s-homelab
 ```
 
-### 10. Verify the cluster
+Then verify:
 
 ```bash
 kubectl get nodes
