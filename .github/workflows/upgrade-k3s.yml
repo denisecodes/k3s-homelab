@@ -72,7 +72,17 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+          # Always scan the master node
+          ssh-keyscan ${{ secrets.MASTER_NODE_IP }} >> ~/.ssh/known_hosts
+
+          # If AGENT_IPS is set, scan each agent node too (comma-separated)
+          if [ -n "${{ secrets.AGENT_IPS }}" ]; then
+            echo "${{ secrets.AGENT_IPS }}" | tr ',' '\n' | while read -r ip; do
+              ip=$(echo "$ip" | tr -d ' ')
+              [ -n "$ip" ] && ssh-keyscan "$ip" >> ~/.ssh/known_hosts
+            done
+          fi
 
       - name: Install Ansible
         run: pip install ansible

@@ -18,6 +18,8 @@ Each step requires updating `k3s-config.yml` and running the upgrade playbook se
 
 ## Option 1: Automated upgrades via GitHub Actions
 
+> **Downtime warning:** The automated workflow does **not** drain or uncordon nodes. Each node will experience a brief interruption when K3s restarts during the upgrade. If you need zero downtime, skip to [Option 3: Zero downtime upgrades (manual)](#zero-downtime-upgrades) instead.
+
 Two workflows handle the automated upgrade process:
 
 ### How it works
@@ -26,10 +28,7 @@ Two workflows handle the automated upgrade process:
    - Fetches all stable K3s releases from the GitHub API
    - Determines the recommended version (2 minor versions behind the latest)
    - Compares it against the version currently set in `k3s-config.yml`
-   - If an upgrade is available and no open upgrade issue already exists, it creates a GitHub issue with the title:
-     ```
-     K3s upgrade available: v1.31.x+k3s1 → v1.33.x+k3s1
-     ```
+   - If an upgrade is available and no open upgrade issue already exists, it creates a GitHub issue titled `K3s upgrade available: v1.31.x+k3s1 → v1.33.x+k3s1`
    - The issue includes the recommended upgrade path and two action commands
 
 2. **`upgrade-k3s.yml`** triggers when you comment on the issue. It handles two commands:
@@ -41,12 +40,24 @@ Two workflows handle the automated upgrade process:
 
 ### Required GitHub secrets
 
-Before the automated workflow can connect to your server, you need to add two secrets to your repository under **Settings → Secrets and variables → Actions**:
+Before the automated workflow can connect to your server, you need to add secrets to your repository under **Settings → Secrets and variables → Actions**:
 
-| Secret | Description |
-|---|---|
-| `SSH_PRIVATE_KEY` | The contents of your private SSH key (e.g. `~/.ssh/id_ed25519`) |
-| `SERVER_IP` | The IP address of your server (e.g. `192.168.1.100`) |
+| Secret | Required | Description |
+|---|---|---|
+| `SSH_PRIVATE_KEY` | Yes | The contents of your private SSH key (e.g. `~/.ssh/id_ed25519`) |
+| `MASTER_NODE_IP` | Yes | The IP address of your control plane (master) node (e.g. `192.168.1.100`) |
+| `AGENT_IPS` | Multi-node only | Comma-separated IPs of your worker nodes (e.g. `192.168.1.101,192.168.1.102`) |
+
+If `AGENT_IPS` is not set, the workflow behaves as single-node and only upgrades the server.
+
+### Multi-node caveat
+
+When `AGENT_IPS` is set, the workflow supports multi-node clusters. The `upgrade.yml` playbook will:
+
+- Upgrade server nodes **one at a time** (to avoid etcd instability)
+- Upgrade all agent nodes **in parallel**
+
+However, the workflow **does not drain or uncordon nodes**. Each node will experience a brief interruption when K3s restarts. If you need zero downtime, use the manual steps described in the [Zero downtime upgrades](#zero-downtime-upgrades) section instead.
 
 ### Example flow
 
@@ -92,7 +103,7 @@ The `VERSION` column should reflect the new K3s version. Repeat steps 1–3 for 
 
 ---
 
-## Zero downtime upgrades
+## Option 3: Zero downtime upgrades (manual)
 
 **This repo is designed for a single-node cluster.** With a single server node, true zero downtime is not possible — when K3s restarts during an upgrade, the control plane and any running workloads on that node are briefly interrupted. If you have no active workloads at the time of upgrade, this is unlikely to be noticeable.
 

@@ -116,7 +116,7 @@ k3s_cluster:
   children:
     server:
       hosts:
-        <YOUR_SERVER_IP>:
+        <YOUR_MASTER_NODE_IP>:   # control plane (master) node
     agent:
       hosts: {}
 
@@ -158,7 +158,7 @@ Each agent node must have your SSH key copied to it (repeat step 2 for each addi
 
 For both setups, replace the following placeholders:
 
-- `<YOUR_SERVER_IP>` / `<YOUR_MASTER_NODE_IP>` — the IP of your control plane (master) node from step 1
+- `<YOUR_MASTER_NODE_IP>` — the IP of your control plane (master) node from step 1
 - `<YOUR_WORKER_NODE_1_IP>`, `<YOUR_WORKER_NODE_2_IP>`, etc. — the IPs of any additional worker nodes (multi-node only)
 - `<YOUR_UBUNTU_USERNAME>` — your username on the server(s)
 - `<GENERATE_A_SECURE_TOKEN_HERE>` — a secure random token (e.g. `openssl rand -hex 32`); this must be the same across all nodes
