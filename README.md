@@ -165,3 +165,7 @@ You should see output similar to:
 NAME         STATUS   ROLES                  AGE   VERSION
 home-k8s     Ready    control-plane,master   10m   v1.31.0+k3s1
 ```
+
+## Acknowledgements
+
+This project uses [k3s-ansible](https://github.com/k3s-io/k3s-ansible) for automating the K3s installation. It is a community-maintained repository and not an official release from the K3s project, but it is actively maintained and widely used.
