@@ -44,9 +44,11 @@
         line: 'PermitRootLogin no'
       notify: restart sshd
 
-    - name: Set timezone to London
+    - name: Set timezone
+      # Timezone is set via the 'timezone' variable in inventory/hosts.ini
+      # Find your timezone string at: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
       timezone:
-        name: Europe/London
+        name: "{{ timezone | default('UTC') }}"
 
   handlers:
     - name: restart sshd

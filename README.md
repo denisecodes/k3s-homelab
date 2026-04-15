@@ -62,16 +62,33 @@ You'll be prompted for the server user's password. After this, you should be abl
 ssh user@192.168.1.100
 ```
 
-### 3. Update the inventory
+### 3. Clone this repo and initialise the K3s Ansible submodule
+
+Clone this repo on your local machine:
+
+```bash
+git clone https://github.com/denisecodes/k3s-homelab
+cd k3s-homelab
+```
+
+Then initialise the K3s Ansible submodule:
+
+```bash
+git submodule update --init --recursive
+```
+
+### 4. Update the inventory
 
 Edit `inventory/hosts.ini` and set the IP address, username, and SSH key path to match your setup:
 
 ```ini
 [homelab]
-192.168.1.100 ansible_user=your-user ansible_ssh_private_key_file=~/.ssh/id_ed25519
+192.168.1.100 ansible_user=your-user ansible_ssh_private_key_file=~/.ssh/id_ed25519 timezone=Europe/London
 ```
 
-### 4. Run the Ansible playbook
+Set `timezone` to your local timezone. You can find the correct string at [https://en.wikipedia.org/wiki/List_of_tz_database_time_zones](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones). If omitted, the playbook defaults to `UTC`.
+
+### 5. Run the Ansible playbook
 
 ```bash
 ansible-playbook -i inventory/hosts.ini baseline.yml --ask-become-pass
@@ -83,15 +100,7 @@ You will be prompted for the become (sudo) password of the remote user. The play
 - Install essential tools (curl, git, vim, ufw, fail2ban, unattended-upgrades)
 - Enable UFW with a default-deny policy and allow SSH (22) and K3s API (6443)
 - Disable root SSH login
-- Set the timezone to Europe/London
-
-### 5. Clone the K3s Ansible submodule
-
-The K3s installation playbook is included as a Git submodule. After cloning this repo, initialise and fetch it:
-
-```bash
-git submodule update --init --recursive
-```
+- Set the timezone to your configured timezone (defaults to `UTC` if not set)
 
 ### 6. Configure K3s
 
@@ -110,7 +119,7 @@ k3s_cluster:
   vars:
     ansible_user: <YOUR_UBUNTU_USERNAME>
     ansible_ssh_private_key_file: ~/.ssh/id_ed25519
-    k3s_version: v1.31.0+k3s1
+    k3s_version: v1.33.10+k3s1
     token: "<GENERATE_A_SECURE_TOKEN_HERE>"
     api_endpoint: "{{ hostvars[groups['server'][0]]['ansible_host'] | default(groups['server'][0]) }}"
     extra_server_args: "--disable traefik"
@@ -158,7 +167,7 @@ You should see output similar to:
 
 ```
 NAME         STATUS   ROLES                  AGE   VERSION
-home-k8s     Ready    control-plane,master   10m   v1.31.0+k3s1
+home-k8s     Ready    control-plane,master   10m   v1.33.10+k3s1
 ```
 
 ## Upgrading K3s
@@ -168,7 +177,7 @@ home-k8s     Ready    control-plane,master   10m   v1.31.0+k3s1
 Edit `k3s-config.yml` and change the `k3s_version` value to the version you want to upgrade to:
 
 ```yaml
-k3s_version: v1.32.0+k3s1
+k3s_version: v1.33.10+k3s1
 ```
 
 It is recommended to stay at least two minor versions behind the latest release for stability. You can find available versions on the [K3s releases page](https://github.com/k3s-io/k3s/releases).
