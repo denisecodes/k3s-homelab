@@ -85,7 +85,15 @@ You will be prompted for the become (sudo) password of the remote user. The play
 - Disable root SSH login
 - Set the timezone to Europe/London
 
-### 5. Configure K3s
+### 5. Clone the K3s Ansible submodule
+
+The K3s installation playbook is included as a Git submodule. After cloning this repo, initialise and fetch it:
+
+```bash
+git submodule update --init --recursive
+```
+
+### 6. Configure K3s
 
 Edit `k3s-config.yml` and fill in your details:
 
@@ -110,7 +118,7 @@ k3s_cluster:
 
 Replace `<YOUR_SERVER_IP>` with the server IP from step 1, `<YOUR_UBUNTU_USERNAME>` with your username, and `<GENERATE_A_SECURE_TOKEN_HERE>` with a secure token (e.g. generated via `openssl rand -hex 32`).
 
-### 6. Install K3s
+### 7. Install K3s
 
 ```bash
 ansible-playbook -i k3s-config.yml k3s-ansible/playbooks/site.yml --ask-become-pass
@@ -118,7 +126,7 @@ ansible-playbook -i k3s-config.yml k3s-ansible/playbooks/site.yml --ask-become-p
 
 You will be prompted for the become (sudo) password. This will install and configure K3s on your server.
 
-### 7. Configure kubectl access
+### 8. Configure kubectl access
 
 Once K3s is installed, copy the kubeconfig from the server to your local machine:
 
@@ -134,7 +142,7 @@ sed -i '' 's|127.0.0.1|192.168.1.100|g' ~/.kube/homelab-config
 
 Replace `192.168.1.100` with your server's IP.
 
-### 8. Merge into your default kubeconfig
+### 9. Merge into your default kubeconfig
 
 Rather than managing a separate config file, merge the homelab config into your default `~/.kube/config` so you can switch between clusters using `kubectl config use-context`:
 
@@ -153,7 +161,7 @@ You can now switch to the homelab context:
 kubectl config use-context default
 ```
 
-### 9. Verify the cluster
+### 10. Verify the cluster
 
 ```bash
 kubectl get nodes
