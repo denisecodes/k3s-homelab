@@ -2,6 +2,8 @@
 
 An Ansible playbook to bootstrap an Ubuntu server with essential packages, firewall rules, and security hardening for a K3s homelab.
 
+> **Single-node design:** This repo is designed for a single server node with no agents. The configuration, playbooks, and upgrade workflows are all built around this setup. If you have multiple nodes, the steps will still work but the automated upgrade workflow does not handle multi-node drain/uncordon sequences — see [docs/upgrading.md](docs/upgrading.md) for more details.
+
 ## Prerequisites
 
 - A Linux server running a Debian-based distribution
@@ -172,31 +174,7 @@ home-k8s     Ready    control-plane,master   10m   v1.33.10+k3s1
 
 ## Upgrading K3s
 
-### 1. Update the K3s version
-
-Edit `k3s-config.yml` and change the `k3s_version` value to the version you want to upgrade to:
-
-```yaml
-k3s_version: v1.33.10+k3s1
-```
-
-It is recommended to stay at least two minor versions behind the latest release for stability. You can find available versions on the [K3s releases page](https://github.com/k3s-io/k3s/releases).
-
-**Important:** You can only upgrade one minor version at a time. For example, to go from v1.31 to v1.33, you must upgrade v1.31 → v1.32 → v1.33, running the upgrade playbook each time.
-
-### 2. Run the upgrade playbook
-
-```bash
-ansible-playbook -i k3s-config.yml k3s-ansible/playbooks/upgrade.yml --ask-become-pass
-```
-
-### 3. Verify the upgrade
-
-```bash
-kubectl get nodes
-```
-
-The `VERSION` column should reflect the new K3s version.
+For full details on the upgrade process, including the automated GitHub Actions workflow and manual steps, see [docs/upgrading.md](docs/upgrading.md).
 
 ## Acknowledgements
 
