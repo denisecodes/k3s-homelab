@@ -2,7 +2,7 @@
 
 An Ansible playbook to bootstrap an Ubuntu server with essential packages, firewall rules, and security hardening for a K3s homelab.
 
-> **Single-node design:** This repo is designed for a single server node with no agents. The configuration, playbooks, and upgrade workflows are all built around this setup. If you have multiple nodes, the steps will still work but the automated upgrade workflow does not handle multi-node drain/uncordon sequences — see [docs/upgrading.md](docs/upgrading.md) for more details.
+> **Single-node design:** This repo is designed for a single master node with no agents. The configuration, playbooks, and upgrade workflows are all built around this setup. If you have multiple nodes, the steps will still work but the automated upgrade workflow does not handle multi-node drain/uncordon sequences — see [docs/upgrading.md](docs/upgrading.md) for more details.
 
 ## Prerequisites
 

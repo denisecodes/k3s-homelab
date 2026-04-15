@@ -28,7 +28,8 @@ Two workflows handle the automated upgrade process:
    - Fetches all stable K3s releases from the GitHub API
    - Determines the recommended version (2 minor versions behind the latest)
    - Compares it against the version currently set in `k3s-config.yml`
-   - If an upgrade is available and no open upgrade issue already exists, it creates a GitHub issue titled `K3s upgrade available: v1.31.x+k3s1 → v1.33.x+k3s1`
+   - If an upgrade is available and no open upgrade issue already exists, it creates a GitHub issue:
+     > **K3s upgrade available: v1.31.x+k3s1 → v1.33.x+k3s1**
    - The issue includes the recommended upgrade path and two action commands
 
 2. **`upgrade-k3s.yml`** triggers when you comment on the issue. It handles two commands:
@@ -136,12 +137,12 @@ This means running the playbook as-is will handle the ordering correctly. Howeve
 
 If you need zero downtime, you must drain each node before upgrading it and uncordon it afterwards. The safe order is: **server node first, then each agent**.
 
-**Server node:**
+**Master node:**
 
 ```bash
-kubectl drain <server-node-name> --ignore-daemonsets --delete-emptydir-data
-ansible-playbook -i k3s-config.yml k3s-ansible/playbooks/upgrade.yml --ask-become-pass --limit <server-ip>
-kubectl uncordon <server-node-name>
+kubectl drain <master-node-name> --ignore-daemonsets --delete-emptydir-data
+ansible-playbook -i k3s-config.yml k3s-ansible/playbooks/upgrade.yml --ask-become-pass --limit <master-ip>
+kubectl uncordon <master-node-name>
 kubectl get nodes
 ```
 
