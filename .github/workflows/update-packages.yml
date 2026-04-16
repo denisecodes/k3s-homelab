@@ -1,0 +1,155 @@
+name: Safe package updates
+
+on:
+  schedule:
+    - cron: '0 9 1 * *'  # 1st of every month at 9am UTC
+  workflow_dispatch:
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan ${{ secrets.MASTER_NODE_IP }} >> ~/.ssh/known_hosts
+          if [ -n "${{ secrets.WORKER_NODE_IPS }}" ]; then
+            echo "${{ secrets.WORKER_NODE_IPS }}" | tr ',' '\n' | while read -r ip; do
+              ip=$(echo "$ip" | tr -d ' ')
+              [ -n "$ip" ] && ssh-keyscan "$ip" >> ~/.ssh/known_hosts
+            done
+          fi
+
+      - name: Install Ansible
+        run: pip install ansible
+
+      - name: Install required collections
+        run: ansible-galaxy collection install -r requirements.yml
+
+      - name: Generate inventory
+        env:
+          MASTER_NODE_IP: ${{ secrets.MASTER_NODE_IP }}
+          WORKER_NODE_IPS: ${{ secrets.WORKER_NODE_IPS }}
+          ANSIBLE_USER: ${{ secrets.ANSIBLE_USER }}
+        run: |
+          python3 << 'EOF'
+          import os
+
+          master_ip = os.environ['MASTER_NODE_IP']
+          worker_ips_raw = os.environ.get('WORKER_NODE_IPS', '').strip()
+          ansible_user = os.environ['ANSIBLE_USER']
+
+          lines = ['[master]', master_ip, '', '[workers]']
+          if worker_ips_raw:
+              for ip in worker_ips_raw.split(','):
+                  ip = ip.strip()
+                  if ip:
+                      lines.append(ip)
+
+          lines += [
+              '',
+              '[homelab:children]',
+              'master',
+              'workers',
+              '',
+              '[homelab:vars]',
+              f'ansible_user={ansible_user}',
+              'ansible_ssh_private_key_file=~/.ssh/id_ed25519',
+          ]
+
+          with open('runtime-inventory.ini', 'w') as f:
+              f.write('\n'.join(lines) + '\n')
+          print("Generated runtime-inventory.ini")
+          EOF
+
+      - name: Dry run - show packages that would be upgraded
+        run: |
+          ansible-playbook linux/update-packages.yml \
+            -i runtime-inventory.ini \
+            --check \
+            --diff
+
+  apply:
+    runs-on: ubuntu-latest
+    needs: dry-run
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan ${{ secrets.MASTER_NODE_IP }} >> ~/.ssh/known_hosts
+          if [ -n "${{ secrets.WORKER_NODE_IPS }}" ]; then
+            echo "${{ secrets.WORKER_NODE_IPS }}" | tr ',' '\n' | while read -r ip; do
+              ip=$(echo "$ip" | tr -d ' ')
+              [ -n "$ip" ] && ssh-keyscan "$ip" >> ~/.ssh/known_hosts
+            done
+          fi
+
+      - name: Install Ansible
+        run: pip install ansible
+
+      - name: Install required collections
+        run: ansible-galaxy collection install -r requirements.yml
+
+      - name: Generate inventory
+        env:
+          MASTER_NODE_IP: ${{ secrets.MASTER_NODE_IP }}
+          WORKER_NODE_IPS: ${{ secrets.WORKER_NODE_IPS }}
+          ANSIBLE_USER: ${{ secrets.ANSIBLE_USER }}
+        run: |
+          python3 << 'EOF'
+          import os
+
+          master_ip = os.environ['MASTER_NODE_IP']
+          worker_ips_raw = os.environ.get('WORKER_NODE_IPS', '').strip()
+          ansible_user = os.environ['ANSIBLE_USER']
+
+          lines = ['[master]', master_ip, '', '[workers]']
+          if worker_ips_raw:
+              for ip in worker_ips_raw.split(','):
+                  ip = ip.strip()
+                  if ip:
+                      lines.append(ip)
+
+          lines += [
+              '',
+              '[homelab:children]',
+              'master',
+              'workers',
+              '',
+              '[homelab:vars]',
+              f'ansible_user={ansible_user}',
+              'ansible_ssh_private_key_file=~/.ssh/id_ed25519',
+          ]
+
+          with open('runtime-inventory.ini', 'w') as f:
+              f.write('\n'.join(lines) + '\n')
+          print("Generated runtime-inventory.ini")
+          EOF
+
+      - name: Apply package updates
+        run: |
+          ansible-playbook linux/update-packages.yml \
+            -i runtime-inventory.ini
+
+      - name: Open issue on failure
+        if: failure()
+        uses: actions/github-script@v9
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Package update failed - ${new Date().toISOString().split('T')[0]}`,
+              body: `The scheduled package update workflow failed.\n\nPlease check the [workflow run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for details.`,
+              labels: ['linux']
+            });
