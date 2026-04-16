@@ -162,3 +162,5 @@ kubectl get nodes
 Only move to the next agent once the previous one is back to `Ready`.
 
 > **Note:** This repo's automated GitHub Actions upgrade workflow is configured for a single master node and does not handle the multi-node drain/uncordon sequence. For multi-node clusters, the manual steps above are recommended.
+
+> **Planned improvement:** A dedicated Ansible playbook (`k3s/upgrade-zero-downtime.yml`) to automate the drain/uncordon sequence above is planned. See [docs/future-improvements.md](future-improvements.md) for details.

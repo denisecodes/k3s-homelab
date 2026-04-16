@@ -50,39 +50,9 @@
       community.general.timezone:
         name: "{{ timezone | default('UTC') }}"
 
-    # Required for K3s on Raspberry Pi — cgroup params must be present before k3s-ansible runs
-    - name: Find boot cmdline.txt
-      ansible.builtin.stat:
-        path: "{{ item }}"
-      loop:
-        - /boot/firmware/cmdline.txt
-        - /boot/cmdline.txt
-      register: cmdline_stat
-
-    - name: Set cmdline.txt path
-      ansible.builtin.set_fact:
-        cmdline_path: "{{ (cmdline_stat.results | selectattr('stat.exists') | map(attribute='item') | list | first) | default('') }}"
-
-    - name: Enable cgroup params for K3s
-      ansible.builtin.replace:
-        path: "{{ cmdline_path }}"
-        regexp: '^((?!.*\b{{ cgroup_item }}\b).*)$'
-        replace: '\1 {{ cgroup_item }}'
-      loop:
-        - cgroup_enable=cpuset
-        - cgroup_memory=1
-        - cgroup_enable=memory
-      loop_control:
-        loop_var: cgroup_item
-      when: cmdline_path != ''
-      notify: Reboot for cgroup changes
-
   handlers:
     - name: Restart sshd
       ansible.builtin.service:
         name: ssh
         state: restarted
 
-    - name: Reboot for cgroup changes
-      ansible.builtin.reboot:
-        reboot_timeout: 120

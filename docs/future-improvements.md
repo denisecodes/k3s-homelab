@@ -6,16 +6,31 @@ This document tracks planned improvements that have been intentionally deferred 
 
 ### Code review workflow
 
-Add a GitHub Actions workflow (e.g. `.github/workflows/code-review.yml`) that runs automatically on every pull request to provide automated code review feedback before merging.
+Add a GitHub Actions workflow (`.github/workflows/code-review.yml`) that runs on every pull request targeting `main` and covers everything that ansible-lint does not. Enforce it as a required status check in branch protection alongside the ansible-lint and Molecule jobs.
 
-- Trigger: `pull_request` (opened, synchronised, reopened)
-- Use `github/super-linter` or individual linters to check YAML, shell scripts, and Markdown formatting in one pass
-- Report violations as PR annotations so reviewers can see issues inline without reading raw logs
-- Consider adding a required status check in the branch protection rules so PRs cannot be merged until the workflow passes
+- Trigger: `pull_request` targeting `main` (opened, synchronised, reopened)
+- Scope: only scan files changed in the PR to keep the workflow fast
+
+**YAML and Markdown formatting** (ansible-lint only covers playbook semantics, not formatting):
+- `yamllint` — consistent indentation, quoting, and line length across all `.yml` files
+- Markdown linting — consistent heading structure, no broken links in docs
+
+**Secret scanning** (ansible-lint has no visibility of secret content):
+- `gitleaks` or `trufflesecurity/trufflehog` — scan every changed file for accidentally committed secrets (tokens, passwords, private keys, IPs)
+- Verify that `argocd/vault/secrets.yml` is ansible-vault ciphertext and not plaintext before merge
+
+**Inline fix suggestions:**
+- Use `reviewdog` as the reporter for `yamllint` and Markdown lint violations — this posts inline comments directly on the changed lines in the PR diff rather than just failing the job, so you can see exactly what needs fixing without reading raw logs
+- Where the fix is mechanical (e.g. indentation, trailing whitespace), `reviewdog` can post a GitHub suggestion block that you can accept and commit with a single click from the PR review UI, without having to edit the file locally and push again
+
+**Dependency and image vulnerability scanning:**
+- `renovate` or `dependabot` — automatically open PRs when the ArgoCD Helm chart (`argocd_chart_version` in `argocd/playbooks/argocd-setup.yml`) or the `kubernetes.core` collection version in `requirements.yml` have newer versions available
+- `trivy` — scan the ArgoCD container image referenced in the Helm chart for known CVEs; fail the workflow if high or critical vulnerabilities are found
+- Flag when the pinned `k3s_version` in `k3s/k3s-config.yml` is more than 2 minor versions behind the latest stable release (reuse the same logic as the monthly upgrade check workflow)
 
 ### ansible-lint
 
-Add a GitHub Actions workflow (e.g. `.github/workflows/lint.yml`) that runs `ansible-lint` against all playbooks on every push and pull request. This catches syntax errors, deprecated module usage, and best practice violations before they reach the cluster.
+Add a GitHub Actions workflow (`.github/workflows/lint.yml`) that runs `ansible-lint` on every pull request targeting `main`. This catches syntax errors, deprecated module usage, and best practice violations before the PR can be merged. Enforce it as a required status check in branch protection.
 
 Playbooks to lint:
 - `linux/baseline.yml`
@@ -25,7 +40,7 @@ Playbooks to lint:
 
 ### Molecule tests
 
-Use [Molecule](https://ansible.readthedocs.io/projects/molecule/) with the Docker driver to test each playbook in isolation. Each scenario spins up a container, runs the playbook, and asserts expected state using `ansible.builtin.assert` or `testinfra`.
+Add Molecule scenarios that run on every pull request targeting `main`, alongside ansible-lint, as required status checks before merging. Use [Molecule](https://ansible.readthedocs.io/projects/molecule/) with the Docker driver to test each playbook in isolation. Each scenario spins up a container, runs the playbook, and asserts expected state using `ansible.builtin.assert` or `testinfra`.
 
 #### `linux/baseline.yml`
 
@@ -72,6 +87,19 @@ Assert:
 - `homelab-admin` account exists (`argocd account list`)
 - Default `admin` account is disabled
 - `homelab-admin` can log in with the vault-provided password
+
+## Zero downtime upgrade playbook
+
+Add a dedicated playbook (`k3s/upgrade-zero-downtime.yml`) to automate the manual drain/uncordon sequence described in [docs/upgrading.md](upgrading.md) Option 3. Only relevant for multi-node clusters.
+
+The playbook should:
+- Loop over nodes in the correct order: master first, then each agent one at a time
+- `kubectl drain` the node (`--ignore-daemonsets --delete-emptydir-data`) before upgrading
+- Run `k3s-ansible/playbooks/upgrade.yml` scoped to that node via `--limit`
+- `kubectl uncordon` the node and wait for it to return to `Ready` before moving to the next
+- Fail fast if a node does not return to `Ready` within a timeout, rather than silently continuing
+
+Once the playbook exists, the `upgrade-k3s.yml` GitHub Actions workflow can be extended with an optional input (e.g. `zero_downtime: true`) to run this playbook instead of the standard upgrade.
 
 ## Safe package updates via GitHub Actions
 
