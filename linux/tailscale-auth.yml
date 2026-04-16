@@ -16,7 +16,7 @@
   hosts: homelab
   become: true
   vars_files:
-    - "{{ lookup('first_found', ['vault/secrets-local.yml', 'vault/secrets.yml']) }}"
+    - "vault/secrets-local.yml"
 
   tasks:
     - name: Check if already authenticated to Tailscale

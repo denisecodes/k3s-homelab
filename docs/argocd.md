@@ -24,7 +24,7 @@ ansible-galaxy collection install -r argocd/requirements.yml
 
 ## 2. Create and encrypt the vault secrets file
 
-The playbook reads `argocd/vault/secrets.yml` to set the password for your dedicated ArgoCD user. This file must exist **before** encrypting it.
+The playbook reads `argocd/vault/secrets-local.yml` to set the password for your dedicated ArgoCD user.
 
 First, set your desired username by editing the `argocd_user` variable at the top of `argocd/playbooks/argocd-setup.yml`:
 
@@ -33,28 +33,28 @@ vars:
   argocd_user: "your-username"   # change this to whatever you want
 ```
 
-The file is already scaffolded in the repo with a placeholder value. Edit it first:
+Copy the template and fill in your real password:
 
 ```bash
-# Open the file and replace the placeholder with a real strong password
-vim argocd/vault/secrets.yml
+cp argocd/vault/secrets.yml argocd/vault/secrets-local.yml
+# edit secrets-local.yml — replace <YOUR_ARGOCD_PASSWORD> with a real strong password
 ```
 
-It should look like this (before encryption):
+It should look like this before encryption:
 
 ```yaml
-argocd_user_password: "YourStrongPasswordHere"  # replace with a real strong password
+argocd_user_password: "a-real-strong-password"
 ```
 
-Once you have set a real password, encrypt the file with ansible-vault:
+Once you have set a real password, encrypt it with ansible-vault:
 
 ```bash
-ansible-vault encrypt argocd/vault/secrets.yml
+ansible-vault encrypt argocd/vault/secrets-local.yml
 ```
 
 You will be prompted to set a vault password. Keep this safe — you will need it every time you run the playbook.
 
-> **Never commit the unencrypted file.** The file is encrypted in-place; the ciphertext is safe to commit.
+> **Never commit `secrets-local.yml` unencrypted.** It is gitignored — the template `secrets.yml` (with the placeholder) is what is committed.
 
 ## 3. Run the playbook
 

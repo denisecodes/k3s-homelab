@@ -1,21 +1,23 @@
 ---
 # Before running:
-#   ansible-galaxy collection install -r requirements.yml
+#   cp linux/inventory/hosts.ini linux/inventory/hosts-local.ini
+#   # edit hosts-local.ini with your real IPs, username, and timezone
+#
 #   cp argocd/vault/secrets.yml argocd/vault/secrets-local.yml
-#   # edit secrets-local.yml with your real password (gitignored), then:
+#   # edit secrets-local.yml with your real password, then:
 #   ansible-vault encrypt argocd/vault/secrets-local.yml
-#   # secrets-local.yml is used automatically if present, otherwise secrets.yml is used
-#   ansible-playbook -i linux/inventory/hosts.ini helm/playbooks/helm-install.yml --ask-become-pass
+#
+#   ansible-galaxy collection install -r requirements.yml
 #
 # Run with:
-#   ansible-playbook -i linux/inventory/hosts.ini argocd/playbooks/argocd-setup.yml \
+#   ansible-playbook -i linux/inventory/hosts-local.ini argocd/playbooks/argocd-setup.yml \
 #     --ask-become-pass --ask-vault-pass
 
 - name: Install and configure ArgoCD via Helm
   hosts: homelab
   become: true
   vars_files:
-    - "{{ lookup('first_found', ['../vault/secrets-local.yml', '../vault/secrets.yml']) }}"
+    - "../vault/secrets-local.yml"
 
   vars:
     argocd_chart_version: "7.8.28"   # https://artifacthub.io/packages/helm/argo/argo-cd

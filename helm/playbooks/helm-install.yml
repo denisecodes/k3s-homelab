@@ -1,8 +1,12 @@
 ---
 # Installs Helm (the Kubernetes package manager) on the target hosts.
 #
+# Before running:
+#   cp linux/inventory/hosts.ini linux/inventory/hosts-local.ini
+#   # edit hosts-local.ini with your real IPs, username, and timezone
+#
 # Run with:
-#   ansible-playbook -i linux/inventory/hosts.ini helm/playbooks/helm-install.yml \
+#   ansible-playbook -i linux/inventory/hosts-local.ini helm/playbooks/helm-install.yml \
 #     --ask-become-pass
 
 - name: Install Helm
