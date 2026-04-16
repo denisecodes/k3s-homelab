@@ -31,11 +31,12 @@
         port: 22
         proto: tcp
 
-    - name: Allow K3s API
+    - name: Allow K3s API (master node only)
       community.general.ufw:
         rule: allow
         port: 6443
         proto: tcp
+      when: "'master' in group_names"
 
     - name: Disable root SSH login
       ansible.builtin.lineinfile:
