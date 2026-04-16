@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Close issue
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             await github.rest.issues.update({
@@ -44,11 +44,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Determine upgrade version
         id: version
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             let version;
@@ -156,7 +156,7 @@ jobs:
 
       - name: Comment and close issue
         if: github.event_name == 'issue_comment'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const version = '${{ steps.version.outputs.k3s_version }}';
