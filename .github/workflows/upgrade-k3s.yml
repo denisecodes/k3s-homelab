@@ -81,14 +81,18 @@ jobs:
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-          # Always scan the master node
-          ssh-keyscan ${{ secrets.MASTER_NODE_IP }} >> ~/.ssh/known_hosts
+          # Always scan the master node (retry to handle Tailscale route propagation delay)
+          for i in 1 2 3 4 5; do
+            ssh-keyscan -T 10 ${{ secrets.MASTER_NODE_IP }} >> ~/.ssh/known_hosts && break
+            echo "ssh-keyscan attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
 
           # If WORKER_NODE_IPS is set, scan each worker node too (comma-separated)
           if [ -n "${{ secrets.WORKER_NODE_IPS }}" ]; then
             echo "${{ secrets.WORKER_NODE_IPS }}" | tr ',' '\n' | while read -r ip; do
               ip=$(echo "$ip" | tr -d ' ')
-              [ -n "$ip" ] && ssh-keyscan "$ip" >> ~/.ssh/known_hosts
+              [ -n "$ip" ] && ssh-keyscan -T 10 "$ip" >> ~/.ssh/known_hosts
             done
           fi
 
