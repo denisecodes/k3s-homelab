@@ -1,5 +1,6 @@
 ---
 collections:
   - name: community.general
+  - name: ansible.posix
   - name: kubernetes.core
     version: ">=3.0.0"
