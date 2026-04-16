@@ -210,10 +210,10 @@ home-k8s     Ready    control-plane,master   10m   v1.33.10+k3s1
 
 For full details on the upgrade process, including the automated GitHub Actions workflow and manual steps, see [docs/upgrading.md](docs/upgrading.md).
 
-## Acknowledgements
-
-This project uses [k3s-ansible](https://github.com/k3s-io/k3s-ansible) for automating the K3s installation. It is a community-maintained repository and not an official release from the K3s project, but it is actively maintained and widely used.
-
 ## Future improvements
 
 - **Project structure:** Configuration files are now organised into subdirectories — `linux/` for the initial server setup, `k3s/` for K3s configuration, and `argocd/` for ArgoCD. See [docs/future-improvements.md](docs/future-improvements.md) for planned further improvements.
+
+## Acknowledgements
+
+This project uses [k3s-ansible](https://github.com/k3s-io/k3s-ansible) for automating the K3s installation. It is a community-maintained repository and not an official release from the K3s project, but it is actively maintained and widely used.
