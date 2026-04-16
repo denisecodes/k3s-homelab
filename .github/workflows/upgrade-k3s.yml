@@ -139,7 +139,7 @@ jobs:
       - name: Update k3s_version in template config
         run: |
           sed -i "s/k3s_version:.*/k3s_version: ${{ steps.version.outputs.k3s_version }}/" \
-            k3s-config.yml
+            k3s/k3s-config.yml
 
       - name: Run upgrade playbook
         run: |
@@ -150,7 +150,7 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add k3s-config.yml
+          git add k3s/k3s-config.yml
           git commit -m "chore: upgrade K3s to ${{ steps.version.outputs.k3s_version }}"
           git push
 

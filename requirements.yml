@@ -1,0 +1,5 @@
+---
+collections:
+  - name: community.general
+  - name: kubernetes.core
+    version: ">=3.0.0"

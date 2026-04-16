@@ -15,7 +15,7 @@ jobs:
       - name: Get current version from config
         id: current
         run: |
-          CURRENT=$(grep 'k3s_version' k3s-config.yml \
+          CURRENT=$(grep 'k3s_version' k3s/k3s-config.yml \
             | awk '{print $2}' | tr -d '"')
           echo "version=$CURRENT" >> $GITHUB_OUTPUT
           CURRENT_MINOR=$(echo "$CURRENT" | sed 's/v//' | cut -d. -f1,2)

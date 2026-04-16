@@ -1,4 +1,4 @@
-# K3s Homelab - Baseline Server Setup
+# K3s Homelab
 
 An Ansible playbook to bootstrap an Ubuntu server with essential packages, firewall rules, and security hardening for a K3s homelab.
 
@@ -81,7 +81,7 @@ git submodule update --init --recursive
 
 ### 4. Update the inventory
 
-Edit `inventory/hosts.ini` and set the IP address, username, and SSH key path to match your setup:
+Edit `linux/inventory/hosts.ini` and set the IP address, username, and SSH key path to match your setup:
 
 ```ini
 [homelab]
@@ -93,7 +93,7 @@ Set `timezone` to your local timezone. You can find the correct string at [https
 ### 5. Run the Ansible playbook
 
 ```bash
-ansible-playbook -i inventory/hosts.ini baseline.yml --ask-become-pass
+ansible-playbook -i linux/inventory/hosts.ini linux/baseline.yml --ask-become-pass
 ```
 
 You will be prompted for the become (sudo) password of the remote user. The playbook will then:
@@ -106,7 +106,7 @@ You will be prompted for the become (sudo) password of the remote user. The play
 
 ### 6. Configure K3s
 
-Edit `k3s-config.yml` and fill in your details:
+Edit `k3s/k3s-config.yml` and fill in your details:
 
 **Single node (default):**
 
@@ -166,7 +166,7 @@ For both setups, replace the following placeholders:
 ### 7. Install K3s
 
 ```bash
-ansible-playbook -i k3s-config.yml k3s-ansible/playbooks/site.yml --ask-become-pass
+ansible-playbook -i k3s/k3s-config.yml k3s-ansible/playbooks/site.yml --ask-become-pass
 ```
 
 You will be prompted for the become (sudo) password. This will install and configure K3s on your server.
@@ -213,3 +213,9 @@ For full details on the upgrade process, including the automated GitHub Actions 
 ## Acknowledgements
 
 This project uses [k3s-ansible](https://github.com/k3s-io/k3s-ansible) for automating the K3s installation. It is a community-maintained repository and not an official release from the K3s project, but it is actively maintained and widely used.
+
+## Future improvements
+
+- **Project structure:** Configuration files are now organised into subdirectories — `linux/` for the initial server setup, `k3s/` for K3s configuration, and `argocd/` for ArgoCD. See [docs/future-improvements.md](docs/future-improvements.md) for planned further improvements.
+
+See [docs/future-improvements.md](docs/future-improvements.md) for full details.

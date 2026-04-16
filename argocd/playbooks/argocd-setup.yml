@@ -1,0 +1,138 @@
+---
+# Before running:
+#   ansible-galaxy collection install -r requirements.yml
+#   ansible-vault encrypt argocd/vault/secrets.yml
+#
+# Run with:
+#   ansible-playbook -i linux/inventory/hosts.ini argocd/playbooks/argocd-setup.yml \
+#     --ask-become-pass --ask-vault-pass
+
+- name: Install and configure ArgoCD via Helm
+  hosts: homelab
+  become: true
+  vars_files:
+    - ../vault/secrets.yml   # ansible-vault encrypted file
+
+  vars:
+    argocd_chart_version: "7.8.26"   # https://artifacthub.io/packages/helm/argo/argo-cd
+    argocd_namespace: "argocd"
+    argocd_user: "homelab-admin"     # dedicated user, not the default 'admin'
+
+  tasks:
+
+    # ── 1. Install prerequisites ───────────────────────────────────────
+    - name: Download Helm install script
+      ansible.builtin.get_url:
+        url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        dest: /tmp/get-helm-3.sh
+        mode: '0700'
+
+    - name: Install Helm
+      ansible.builtin.command: /tmp/get-helm-3.sh
+      args:
+        creates: /usr/local/bin/helm
+      changed_when: false
+
+    - name: Add Argo Helm repo
+      kubernetes.core.helm_repository:
+        name: argo
+        repo_url: https://argoproj.github.io/argo-helm
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+    # ── 2. Install ArgoCD via Helm ─────────────────────────────────────
+    - name: Create argocd namespace
+      kubernetes.core.k8s:
+        name: "{{ argocd_namespace }}"
+        api_version: v1
+        kind: Namespace
+        state: present
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+    - name: Install ArgoCD chart
+      kubernetes.core.helm:
+        name: argocd
+        chart_ref: argo/argo-cd
+        chart_version: "{{ argocd_chart_version }}"
+        release_namespace: "{{ argocd_namespace }}"
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+        values:
+          configs:
+            params:
+              # Disable TLS on the argocd-server pod — terminate TLS at ingress/LB level
+              server.insecure: true
+            cm:
+              # Declare the dedicated local user
+              accounts.homelab-admin: login
+              # Disable the default admin account once homelab-admin is set up
+              accounts.admin.enabled: "false"
+            rbac:
+              policy.csv: |
+                g, homelab-admin, role:admin
+
+    - name: Wait for ArgoCD server to be ready
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        namespace: "{{ argocd_namespace }}"
+        name: argocd-server
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+      register: argocd_deploy
+      until: argocd_deploy.resources[0].status.readyReplicas | default(0) >= 1
+      retries: 20
+      delay: 15
+
+    # ── 3. Install argocd CLI ──────────────────────────────────────────
+    - name: Get installed ArgoCD server version
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        namespace: "{{ argocd_namespace }}"
+        name: argocd-server
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+      register: argocd_server_deploy
+
+    - name: Extract ArgoCD app version
+      ansible.builtin.set_fact:
+        argocd_app_version: >-
+          {{ argocd_server_deploy.resources[0].spec.template.spec.containers[0].image
+             | regex_search('v[0-9]+\.[0-9]+\.[0-9]+') }}
+
+    - name: Download argocd CLI matching installed version
+      ansible.builtin.get_url:
+        url: "https://github.com/argoproj/argo-cd/releases/download/\
+              {{ argocd_app_version }}/argocd-linux-amd64"
+        dest: /usr/local/bin/argocd
+        mode: '0755'
+
+    # ── 4. Set password for dedicated user ────────────────────────────
+    - name: Retrieve initial admin password
+      kubernetes.core.k8s_info:
+        kind: Secret
+        namespace: "{{ argocd_namespace }}"
+        name: argocd-initial-admin-secret
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+      register: argocd_secret
+
+    - name: Decode initial admin password
+      ansible.builtin.set_fact:
+        argocd_admin_pass: "{{ argocd_secret.resources[0].data.password | b64decode }}"
+
+    - name: Log in to ArgoCD as admin via cluster-internal address
+      ansible.builtin.command: >
+        argocd login argocd-server.argocd.svc.cluster.local:80
+        --username admin
+        --password "{{ argocd_admin_pass }}"
+        --plaintext
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      changed_when: false
+      no_log: true
+
+    - name: Set password for dedicated homelab-admin user
+      ansible.builtin.command: >
+        argocd account update-password
+        --account "{{ argocd_user }}"
+        --new-password "{{ argocd_user_password }}"
+        --current-password "{{ argocd_admin_pass }}"
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      changed_when: false
+      no_log: true

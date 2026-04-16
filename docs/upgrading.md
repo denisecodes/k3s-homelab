@@ -12,7 +12,7 @@ K3s only supports upgrading **one minor version at a time**. You cannot skip ver
 v1.31 → v1.32 → v1.33
 ```
 
-Each step requires updating `k3s-config.yml` and running the upgrade playbook separately.
+Each step requires updating `k3s/k3s-config.yml` and running the upgrade playbook separately.
 
 ---
 
@@ -27,7 +27,7 @@ Two workflows handle the automated upgrade process:
 1. **`check-k3s-upgrade.yml`** runs on the **1st of every month** at 9am UTC. It:
    - Fetches all stable K3s releases from the GitHub API
    - Determines the recommended version (2 minor versions behind the latest)
-   - Compares it against the version currently set in `k3s-config.yml`
+   - Compares it against the version currently set in `k3s/k3s-config.yml`
    - If an upgrade is available and no open upgrade issue already exists, it creates a GitHub issue:
      > **K3s upgrade available: v1.31.x+k3s1 → v1.33.x+k3s1**
    - The issue includes the recommended upgrade path and two action commands
@@ -36,7 +36,7 @@ Two workflows handle the automated upgrade process:
 
 | Comment | Action |
 |---|---|
-| `/upgrade` | Runs the upgrade playbook, commits the updated `k3s-config.yml`, and closes the issue |
+| `/upgrade` | Runs the upgrade playbook, commits the updated `k3s/k3s-config.yml`, and closes the issue |
 | `/reject` | Closes the issue without making any changes |
 
 ### Required GitHub secrets
@@ -48,7 +48,7 @@ Before the automated workflow can connect to your server, you need to add secret
 | `SSH_PRIVATE_KEY` | Yes | The contents of your private SSH key (e.g. `~/.ssh/id_ed25519`) |
 | `MASTER_NODE_IP` | Yes | The IP address of your control plane (master) node (e.g. `192.168.1.100`) |
 | `ANSIBLE_USER` | Yes | The username Ansible will SSH in as (e.g. `your-user`) |
-| `K3S_TOKEN` | Yes | The cluster token set during installation (from `k3s-config.yml`) |
+| `K3S_TOKEN` | Yes | The cluster token set during installation (from `k3s/k3s-config.yml`) |
 | `WORKER_NODE_IPS` | Multi-node only | Comma-separated IPs of your worker nodes (e.g. `192.168.1.101,192.168.1.102`) |
 
 If `WORKER_NODE_IPS` is not set, the workflow behaves as single-node and only upgrades the master node.
@@ -82,7 +82,7 @@ However, the workflow **does not drain or uncordon nodes**. Each node will exper
 
 If you prefer to upgrade manually without GitHub Actions:
 
-### 1. Edit `k3s-config.yml`
+### 1. Edit `k3s/k3s-config.yml`
 
 Update the `k3s_version` to the next minor version:
 
@@ -114,7 +114,7 @@ The `VERSION` column should reflect the new K3s version. Repeat steps 1–3 for 
 
 ### Multi-node clusters
 
-If you have configured agent nodes in your `k3s-config.yml`, for example:
+If you have configured agent nodes in your `k3s/k3s-config.yml`, for example:
 
 ```yaml
 k3s_cluster:
@@ -145,7 +145,7 @@ If you need zero downtime, you must drain each node before upgrading it and unco
 
 ```bash
 kubectl drain <master-node-name> --ignore-daemonsets --delete-emptydir-data
-ansible-playbook -i k3s-config.yml k3s-ansible/playbooks/upgrade.yml --ask-become-pass --limit <master-ip>
+ansible-playbook -i k3s/k3s-config.yml k3s-ansible/playbooks/upgrade.yml --ask-become-pass --limit <master-ip>
 kubectl uncordon <master-node-name>
 kubectl get nodes
 ```
@@ -154,7 +154,7 @@ kubectl get nodes
 
 ```bash
 kubectl drain <agent-node-name> --ignore-daemonsets --delete-emptydir-data
-ansible-playbook -i k3s-config.yml k3s-ansible/playbooks/upgrade.yml --ask-become-pass --limit <agent-ip>
+ansible-playbook -i k3s/k3s-config.yml k3s-ansible/playbooks/upgrade.yml --ask-become-pass --limit <agent-ip>
 kubectl uncordon <agent-node-name>
 kubectl get nodes
 ```
