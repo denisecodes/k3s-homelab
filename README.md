@@ -2,7 +2,7 @@
 
 Ansible automation to provision a homelab from bare Ubuntu server to a running K3s cluster with ArgoCD. Covers Linux baseline hardening, K3s installation, and ArgoCD setup via Helm.
 
-> **Single-node design:** This repo is designed for a single master node with no agents. The configuration, playbooks, and upgrade workflows are all built around this setup. If you have multiple nodes, the steps will still work but the automated upgrade workflow does not handle multi-node drain/uncordon sequences — see [docs/upgrading.md](docs/upgrading.md) for more details.
+> **Multi-node support:** This repo supports both single-node and multi-node setups. The Linux baseline playbook configures all nodes, with port 6443 only opened on the master. The automated upgrade workflow is built around a single master node — for multi-node zero downtime upgrades see [docs/upgrading.md](docs/upgrading.md).
 
 ## Prerequisites
 
@@ -81,11 +81,44 @@ git submodule update --init --recursive
 
 ### 4. Update the inventory
 
-Edit `linux/inventory/hosts.ini` and set the IP address, username, and SSH key path to match your setup:
+Edit `linux/inventory/hosts.ini` and fill in your details. The inventory is split into `[master]` and `[workers]` groups so the playbook can apply different rules to each (e.g. port 6443 is only opened on the master).
+
+**Single node:**
 
 ```ini
-[homelab]
-192.168.1.100 ansible_user=your-user ansible_ssh_private_key_file=~/.ssh/id_ed25519 timezone=Europe/London
+[master]
+192.168.1.100
+
+[workers]
+
+[homelab:children]
+master
+workers
+
+[homelab:vars]
+ansible_user=your-user
+ansible_ssh_private_key_file=~/.ssh/id_ed25519
+timezone=Europe/London
+```
+
+**Multi-node** — uncomment and add worker IPs under `[workers]`:
+
+```ini
+[master]
+192.168.1.100
+
+[workers]
+192.168.1.101
+192.168.1.102
+
+[homelab:children]
+master
+workers
+
+[homelab:vars]
+ansible_user=your-user
+ansible_ssh_private_key_file=~/.ssh/id_ed25519
+timezone=Europe/London
 ```
 
 Set `timezone` to your local timezone. You can find the correct string at [https://en.wikipedia.org/wiki/List_of_tz_database_time_zones](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones). If omitted, the playbook defaults to `UTC`.
@@ -100,7 +133,7 @@ You will be prompted for the become (sudo) password of the remote user. The play
 
 - Update and upgrade system packages
 - Install essential tools (curl, git, vim, ufw, fail2ban, unattended-upgrades)
-- Enable UFW with a default-deny policy and allow SSH (22) and K3s API (6443)
+- Enable UFW with a default-deny policy; allow SSH (22) on all nodes and K3s API (6443) on the master only
 - Disable root SSH login
 - Set the timezone to your configured timezone (defaults to `UTC` if not set)
 
