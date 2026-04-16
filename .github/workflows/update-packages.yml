@@ -1,4 +1,4 @@
-name: Safe package updates
+name: Update packages
 
 on:
   schedule:
