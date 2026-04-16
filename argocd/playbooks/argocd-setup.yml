@@ -17,7 +17,7 @@
   hosts: homelab
   become: true
   vars_files:
-    - "{{ lookup('first_found', ['../vault/secrets-local.yml', '../vault/secrets.yml']) }}"
+    - "../vault/secrets-local.yml"
 
   vars:
     argocd_chart_version: "7.8.28"   # https://artifacthub.io/packages/helm/argo/argo-cd
