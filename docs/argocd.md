@@ -96,7 +96,7 @@ kubectl delete namespace argocd
 
 | Variable | Default | Description |
 |---|---|---|
-| `argocd_chart_version` | `7.8.26` | Helm chart version to install |
+| `argocd_chart_version` | `7.8.28` | Helm chart version to install |
 | `argocd_namespace` | `argocd` | Kubernetes namespace |
 | `argocd_user` | `homelab-admin` | Dedicated ArgoCD user (default `admin` is disabled) |
 | `argocd_user_password` | *(vault)* | Password for `homelab-admin`, read from `argocd/vault/secrets.yml` |

@@ -14,7 +14,7 @@
     - ../vault/secrets.yml   # ansible-vault encrypted file
 
   vars:
-    argocd_chart_version: "7.8.26"   # https://artifacthub.io/packages/helm/argo/argo-cd
+    argocd_chart_version: "7.8.28"   # https://artifacthub.io/packages/helm/argo/argo-cd
     argocd_namespace: "argocd"
     argocd_user: "homelab-admin"     # dedicated user, not the default 'admin'
 
