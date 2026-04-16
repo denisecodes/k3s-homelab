@@ -104,16 +104,13 @@
           {{ argocd_server_deploy.resources[0].spec.template.spec.containers[0].image
              | regex_search('v[0-9]+\.[0-9]+\.[0-9]+') }}
 
-    - name: Download argocd CLI matching installed version (resumable)
-      ansible.builtin.shell: >
-        curl -C - -fL
-        -o /tmp/argocd-{{ argocd_app_version }}
-        "https://github.com/argoproj/argo-cd/releases/download/{{ argocd_app_version }}/argocd-linux-amd64"
-      register: argocd_cli_download
+    - name: Download argocd CLI matching installed version
+      ansible.builtin.get_url:
+        url: "https://github.com/argoproj/argo-cd/releases/download/{{ argocd_app_version }}/argocd-linux-amd64"
+        dest: "/tmp/argocd-{{ argocd_app_version }}"
+        mode: '0755'
       retries: 5
       delay: 5
-      until: argocd_cli_download.rc == 0
-      changed_when: argocd_cli_download.rc == 0
 
     - name: Install argocd CLI to /usr/local/bin
       ansible.builtin.copy:
@@ -166,7 +163,7 @@
       no_log: true
       when: argocd_secret.resources | length > 0
 
-    - name: Set password for dedicated {{ argocd_user }} user
+    - name: Set password for dedicated user - {{ argocd_user }}
       ansible.builtin.command: >
         argocd account update-password
         --account "{{ argocd_user }}"
