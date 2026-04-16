@@ -5,6 +5,11 @@ on:
     branches:
       - main
     types: [opened, synchronize, reopened]
+    paths:
+      - 'linux/**'
+      - 'molecule/linux/**'
+      - '.github/workflows/molecule.yml'
+      - 'requirements.yml'
 
 jobs:
   molecule-linux:
