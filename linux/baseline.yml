@@ -50,6 +50,32 @@
       community.general.timezone:
         name: "{{ timezone | default('UTC') }}"
 
+    # ── LVM: expand logical volume to use all available disk space ─────
+    # Ubuntu Server's default installer only allocates ~100GB even on larger
+    # disks. These tasks extend the logical volume and resize the filesystem
+    # to use 100% of the volume group's free space. Safe to run multiple
+    # times — both commands are idempotent (no-op if already at full size).
+    - name: Check free space in volume group
+      ansible.builtin.command: vgs --noheadings -o vg_free --units b ubuntu-vg
+      register: vg_free
+      changed_when: false
+      failed_when: false
+
+    - name: Extend logical volume to use all free space
+      ansible.builtin.command: lvextend -l +100%FREE /dev/mapper/ubuntu--vg-ubuntu--lv
+      when:
+        - vg_free.rc == 0
+        - vg_free.stdout | trim | regex_replace('B$', '') | int > 0
+      register: lv_extended
+      changed_when: lv_extended.rc == 0
+
+    - name: Resize filesystem to fill extended logical volume
+      ansible.builtin.command: resize2fs /dev/mapper/ubuntu--vg-ubuntu--lv
+      when:
+        - vg_free.rc == 0
+        - vg_free.stdout | trim | regex_replace('B$', '') | int > 0
+      changed_when: true
+
   handlers:
     - name: Restart sshd
       ansible.builtin.service:
