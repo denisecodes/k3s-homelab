@@ -19,6 +19,12 @@
           - unattended-upgrades
         state: present
 
+    - name: Enable and start fail2ban
+      ansible.builtin.service:
+        name: fail2ban
+        enabled: true
+        state: started
+
     - name: Configure UFW default deny
       community.general.ufw:
         state: enabled
