@@ -1,0 +1,76 @@
+---
+# Installs Tailscale and starts the tailscaled service on all homelab nodes.
+# See docs/tailscale.md for the full setup guide including auth key generation.
+#
+# Run with:
+#   ansible-playbook -i linux/inventory/hosts-local.ini linux/tailscale-install.yml \
+#     --ask-become-pass
+
+- name: Install Tailscale
+  hosts: homelab
+  become: true
+
+  tasks:
+    - name: Add Tailscale apt signing key
+      ansible.builtin.get_url:
+        url: https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg
+        dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+        mode: '0644'
+
+    - name: Add Tailscale apt repository
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/ubuntu noble main"
+        filename: tailscale
+        state: present
+
+    - name: Install Tailscale
+      ansible.builtin.apt:
+        name: tailscale
+        state: present
+        update_cache: true
+
+    - name: Enable and start tailscaled service
+      ansible.builtin.service:
+        name: tailscaled
+        enabled: true
+        state: started
+
+    - name: Check if already authenticated to Tailscale
+      ansible.builtin.command: tailscale status --json
+      register: tailscale_status
+      changed_when: false
+      failed_when: false
+
+    - name: Start tailscale up to generate login URL
+      ansible.builtin.command: tailscale up
+      async: 60
+      poll: 0
+      changed_when: true
+      when: >
+        (tailscale_status.rc != 0) or
+        ('NeedsLogin' in tailscale_status.stdout)
+
+    - name: Wait for login URL to be available
+      ansible.builtin.pause:
+        seconds: 3
+      when: >
+        (tailscale_status.rc != 0) or
+        ('NeedsLogin' in tailscale_status.stdout)
+
+    - name: Retrieve Tailscale login URL
+      ansible.builtin.command: tailscale status --json
+      register: tailscale_status_after
+      changed_when: false
+      failed_when: false
+      when: >
+        (tailscale_status.rc != 0) or
+        ('NeedsLogin' in tailscale_status.stdout)
+
+    - name: Display Tailscale login URL
+      ansible.builtin.debug:
+        msg: >-
+          Open this URL in your browser to authenticate this node:
+          {{ (tailscale_status_after.stdout | from_json).AuthURL | default('URL not yet available — run: sudo tailscale status') }}
+      when: >
+        tailscale_status_after is not skipped and
+        (tailscale_status_after.stdout | from_json).AuthURL is defined

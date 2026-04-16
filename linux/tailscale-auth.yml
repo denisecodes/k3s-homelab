@@ -1,0 +1,56 @@
+---
+# Authenticates nodes to Tailscale and configures UFW rules.
+# Requires Tailscale to already be installed — run linux/tailscale-install.yml first.
+# See docs/tailscale.md for the full setup guide including auth key generation.
+#
+# Before running:
+#   cp linux/vault/secrets.yml linux/vault/secrets-local.yml
+#   # edit secrets-local.yml with your real Tailscale auth key, then:
+#   ansible-vault encrypt linux/vault/secrets-local.yml
+#
+# Run with:
+#   ansible-playbook -i linux/inventory/hosts-local.ini linux/tailscale-auth.yml \
+#     --ask-become-pass --ask-vault-pass
+
+- name: Authenticate Tailscale and configure UFW
+  hosts: homelab
+  become: true
+  vars_files:
+    - "{{ lookup('first_found', ['vault/secrets-local.yml', 'vault/secrets.yml']) }}"
+
+  tasks:
+    - name: Check if already authenticated to Tailscale
+      ansible.builtin.command: tailscale status --json
+      register: tailscale_status
+      changed_when: false
+      failed_when: false
+
+    - name: Authenticate to Tailscale
+      ansible.builtin.command: >
+        tailscale up --authkey={{ tailscale_authkey }} --accept-routes
+      when: >
+        (tailscale_status.rc != 0) or
+        ('NeedsLogin' in tailscale_status.stdout)
+      changed_when: true
+      no_log: true
+
+    - name: Allow Tailscale UDP port through UFW
+      community.general.ufw:
+        rule: allow
+        port: 41641
+        proto: udp
+
+    - name: Allow all traffic on tailscale0 interface
+      community.general.ufw:
+        rule: allow
+        interface: tailscale0
+        direction: in
+
+    - name: Get Tailscale IP
+      ansible.builtin.command: tailscale ip -4
+      register: tailscale_ip
+      changed_when: false
+
+    - name: Display Tailscale IP
+      ansible.builtin.debug:
+        msg: "Tailscale IP for {{ inventory_hostname }}: {{ tailscale_ip.stdout }}"
