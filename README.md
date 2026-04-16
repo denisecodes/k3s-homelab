@@ -217,5 +217,3 @@ This project uses [k3s-ansible](https://github.com/k3s-io/k3s-ansible) for autom
 ## Future improvements
 
 - **Project structure:** Configuration files are now organised into subdirectories — `linux/` for the initial server setup, `k3s/` for K3s configuration, and `argocd/` for ArgoCD. See [docs/future-improvements.md](docs/future-improvements.md) for planned further improvements.
-
-See [docs/future-improvements.md](docs/future-improvements.md) for full details.
