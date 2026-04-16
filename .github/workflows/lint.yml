@@ -21,17 +21,5 @@ jobs:
       - name: Install required collections
         run: ansible-galaxy collection install -r requirements.yml
 
-      - name: Lint linux/baseline.yml
-        run: ansible-lint linux/baseline.yml
-
-      - name: Lint argocd/playbooks/argocd-setup.yml
-        run: ansible-lint argocd/playbooks/argocd-setup.yml
-
-      - name: Lint k3s-ansible/playbooks/site.yml
-        run: ansible-lint k3s-ansible/playbooks/site.yml
-
-      - name: Lint k3s-ansible/playbooks/upgrade.yml
-        run: ansible-lint k3s-ansible/playbooks/upgrade.yml
-
-      - name: Lint helm/playbooks/helm-install.yml
-        run: ansible-lint helm/playbooks/helm-install.yml
+      - name: Lint playbooks
+        run: ansible-lint linux/baseline.yml argocd/playbooks/argocd-setup.yml helm/playbooks/helm-install.yml
