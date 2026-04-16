@@ -1,0 +1,59 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check ufw is installed
+      ansible.builtin.command: ufw status verbose
+      register: ufw_status
+      changed_when: false
+
+    - name: Assert ufw is active
+      ansible.builtin.assert:
+        that: "'Status: active' in ufw_status.stdout"
+        fail_msg: "ufw is not active"
+
+    - name: Assert ufw default incoming policy is deny
+      ansible.builtin.assert:
+        that: "'Default: deny (incoming)' in ufw_status.stdout"
+        fail_msg: "ufw default incoming policy is not deny"
+
+    - name: Assert port 22 is allowed in ufw
+      ansible.builtin.assert:
+        that: "'22/tcp' in ufw_status.stdout or '22' in ufw_status.stdout"
+        fail_msg: "Port 22 is not allowed in ufw"
+
+    - name: Assert port 6443 is allowed in ufw
+      ansible.builtin.assert:
+        that: "'6443/tcp' in ufw_status.stdout or '6443' in ufw_status.stdout"
+        fail_msg: "Port 6443 is not allowed in ufw"
+
+    - name: Check fail2ban is installed
+      ansible.builtin.command: systemctl is-active fail2ban
+      register: fail2ban_status
+      changed_when: false
+
+    - name: Assert fail2ban is running
+      ansible.builtin.assert:
+        that: "fail2ban_status.stdout == 'active'"
+        fail_msg: "fail2ban is not running"
+
+    - name: Check sshd_config for PermitRootLogin
+      ansible.builtin.command: grep '^PermitRootLogin' /etc/ssh/sshd_config
+      register: sshd_config
+      changed_when: false
+
+    - name: Assert root SSH login is disabled
+      ansible.builtin.assert:
+        that: "'PermitRootLogin no' in sshd_config.stdout"
+        fail_msg: "Root SSH login is not disabled"
+
+    - name: Check timezone
+      ansible.builtin.command: timedatectl show --property=Timezone --value
+      register: current_timezone
+      changed_when: false
+
+    - name: Assert timezone is set correctly
+      ansible.builtin.assert:
+        that: "current_timezone.stdout == 'Europe/London'"
+        fail_msg: "Timezone is not set to Europe/London, got: {{ current_timezone.stdout }}"

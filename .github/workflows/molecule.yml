@@ -1,0 +1,24 @@
+name: Molecule tests
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+
+jobs:
+  molecule-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Install Ansible, Molecule and dependencies
+        run: pip install ansible ansible-lint molecule molecule-plugins[docker] docker
+
+      - name: Install required collections
+        run: ansible-galaxy collection install -r requirements.yml
+
+      - name: Run Molecule tests for linux/baseline.yml
+        run: molecule test --scenario-name linux
+        working-directory: ${{ github.workspace }}
