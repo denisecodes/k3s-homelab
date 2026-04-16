@@ -1,6 +1,6 @@
 # K3s Homelab
 
-An Ansible playbook to bootstrap an Ubuntu server with essential packages, firewall rules, and security hardening for a K3s homelab.
+Ansible automation to provision a homelab from bare Ubuntu server to a running K3s cluster with ArgoCD. Covers Linux baseline hardening, K3s installation, and ArgoCD setup via Helm.
 
 > **Single-node design:** This repo is designed for a single master node with no agents. The configuration, playbooks, and upgrade workflows are all built around this setup. If you have multiple nodes, the steps will still work but the automated upgrade workflow does not handle multi-node drain/uncordon sequences — see [docs/upgrading.md](docs/upgrading.md) for more details.
 

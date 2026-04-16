@@ -4,6 +4,15 @@ This document tracks planned improvements that have been intentionally deferred 
 
 ## Testing
 
+### Code review workflow
+
+Add a GitHub Actions workflow (e.g. `.github/workflows/code-review.yml`) that runs automatically on every pull request to provide automated code review feedback before merging.
+
+- Trigger: `pull_request` (opened, synchronised, reopened)
+- Use `github/super-linter` or individual linters to check YAML, shell scripts, and Markdown formatting in one pass
+- Report violations as PR annotations so reviewers can see issues inline without reading raw logs
+- Consider adding a required status check in the branch protection rules so PRs cannot be merged until the workflow passes
+
 ### ansible-lint
 
 Add a GitHub Actions workflow (e.g. `.github/workflows/lint.yml`) that runs `ansible-lint` against all playbooks on every push and pull request. This catches syntax errors, deprecated module usage, and best practice violations before they reach the cluster.
