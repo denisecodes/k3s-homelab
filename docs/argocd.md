@@ -4,15 +4,15 @@ This document covers how to install and configure ArgoCD on your k3s cluster usi
 
 ArgoCD is installed via Helm using the official `argo/argo-cd` chart. The playbook:
 
-- Installs Helm on the master node
 - Adds the Argo Helm repository
 - Deploys ArgoCD into the `argocd` namespace
 - Installs the `argocd` CLI, version-matched to the deployed chart
-- Creates a dedicated `homelab-admin` user and disables the default `admin` account
+- Creates a dedicated user (configured via `argocd_user`) and disables the default `admin` account
 
 ## Prerequisites
 
 - K3s cluster already running (see [README](../README.md))
+- Helm installed on the cluster nodes — **complete [Helm setup](helm.md) first**
 - [ansible-vault](https://docs.ansible.com/ansible/latest/vault_guide/index.html) installed locally
 - The `kubernetes.core` Ansible collection installed (see below)
 
@@ -24,19 +24,26 @@ ansible-galaxy collection install -r argocd/requirements.yml
 
 ## 2. Create and encrypt the vault secrets file
 
-The playbook reads `argocd/vault/secrets.yml` to set the password for the `homelab-admin` user. This file must exist **before** encrypting it.
+The playbook reads `argocd/vault/secrets.yml` to set the password for your dedicated ArgoCD user. This file must exist **before** encrypting it.
+
+First, set your desired username by editing the `argocd_user` variable at the top of `argocd/playbooks/argocd-setup.yml`:
+
+```yaml
+vars:
+  argocd_user: "your-username"   # change this to whatever you want
+```
 
 The file is already scaffolded in the repo with a placeholder value. Edit it first:
 
 ```bash
 # Open the file and replace the placeholder with a real strong password
-nano argocd/vault/secrets.yml
+vim argocd/vault/secrets.yml
 ```
 
 It should look like this (before encryption):
 
 ```yaml
-argocd_user_password: "YourStrongPasswordHere"
+argocd_user_password: "YourStrongPasswordHere"  # replace with a real strong password
 ```
 
 Once you have set a real password, encrypt the file with ansible-vault:
@@ -64,16 +71,26 @@ ansible-playbook -i linux/inventory/hosts.ini argocd/playbooks/argocd-setup.yml 
 
 ## 4. Access the ArgoCD UI
 
-ArgoCD is configured to run in **insecure mode** (no pod-level TLS). Access it by port-forwarding from your local machine:
+ArgoCD is exposed via **NodePort** on port `30080`. Open your browser and navigate to:
 
-```bash
-kubectl port-forward svc/argocd-server -n argocd 8080:80
+```
+http://<node-ip>:30080
 ```
 
-Then open [http://localhost:8080](http://localhost:8080) in your browser and log in with:
+For example, if your node IP is `192.168.50.113`:
 
-- **Username**: `homelab-admin`
-- **Password**: the value you set in `argocd/vault/secrets.yml`
+```
+http://192.168.50.113:30080
+```
+
+Log in with:
+
+- **Username**: the value you set for `argocd_user` in the playbook vars
+- **Password**: the value you set in `argocd/vault/secrets-local.yml`
+
+> This address is only reachable on your local network. The `192.168.50.x` range is a private address — it is not accessible from the internet unless you explicitly configure port forwarding on your router.
+
+The NodePort (`30080`) is configurable via `argocd_nodeport` in the playbook vars.
 
 ## 5. Verify the CLI works
 
@@ -98,7 +115,45 @@ kubectl delete namespace argocd
 |---|---|---|
 | `argocd_chart_version` | `7.8.28` | Helm chart version to install |
 | `argocd_namespace` | `argocd` | Kubernetes namespace |
-| `argocd_user` | `homelab-admin` | Dedicated ArgoCD user (default `admin` is disabled) |
-| `argocd_user_password` | *(vault)* | Password for `homelab-admin`, read from `argocd/vault/secrets.yml` |
+| `argocd_nodeport` | `30080` | NodePort for the ArgoCD UI — access at `http://<node-ip>:<nodeport>` |
+| `argocd_user` | *(your choice)* | Dedicated ArgoCD user — set this at the top of the playbook (default `admin` is disabled) |
+| `argocd_user_password` | *(vault)* | Password for your dedicated user, read from `argocd/vault/secrets.yml` |
 
 To pin a different chart version, update `argocd_chart_version` in `argocd/playbooks/argocd-setup.yml`. Check available versions at [ArtifactHub](https://artifacthub.io/packages/helm/argo/argo-cd).
+
+## Next steps
+
+### GitOps app deployment via ArgoCD
+
+The natural next step is to have ArgoCD watch a Git repository and automatically deploy applications via Helm. The workflow looks like this:
+
+1. **Create an app-of-apps repo** — a separate Git repository (e.g. `k3s-apps`) that contains Helm charts or ArgoCD `Application` manifests for each service you want to deploy.
+
+2. **Register the repo in ArgoCD** — point ArgoCD at the repo so it can pull from it:
+   ```bash
+   argocd repo add https://github.com/your-username/k3s-apps --username your-user --password your-token
+   ```
+
+3. **Create an ArgoCD Application** — define what to deploy and where:
+   ```yaml
+   apiVersion: argoproj.io/v1alpha1
+   kind: Application
+   metadata:
+     name: my-app
+     namespace: argocd
+   spec:
+     project: default
+     source:
+       repoURL: https://github.com/your-username/k3s-apps
+       targetRevision: HEAD
+       path: charts/my-app
+     destination:
+       server: https://kubernetes.default.svc
+       namespace: my-app
+     syncPolicy:
+       automated:
+         prune: true
+         selfHeal: true
+   ```
+
+4. **Automate with Ansible** — this can be added to `argocd-setup.yml` using `kubernetes.core.k8s` to apply `Application` manifests, so the full cluster state is declared in code and reproduced by running the playbook.

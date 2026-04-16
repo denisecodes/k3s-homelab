@@ -3,6 +3,7 @@ k3s-config-local.yml
 k3s/k3s-config-local.yml
 inventory/hosts-local.ini
 linux/inventory/hosts-local.ini
+argocd/vault/secrets-local.yml
 
 # Ansible vault password files (never commit these)
 .vault_pass
