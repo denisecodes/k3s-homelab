@@ -1,0 +1,28 @@
+---
+- name: Safe package updates
+  hosts: homelab
+  become: true
+  tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Upgrade all packages
+      ansible.builtin.apt:
+        upgrade: dist
+      register: apt_upgrade
+
+    - name: Show upgraded packages
+      ansible.builtin.debug:
+        msg: "{{ apt_upgrade.stdout_lines }}"
+      when: apt_upgrade.changed
+
+    - name: Check if reboot is required
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+
+    - name: Notify if reboot is required
+      ansible.builtin.debug:
+        msg: "Reboot is required on {{ inventory_hostname }} to apply updates."
+      when: reboot_required.stat.exists
