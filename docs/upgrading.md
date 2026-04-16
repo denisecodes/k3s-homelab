@@ -47,13 +47,17 @@ Before the automated workflow can connect to your server, you need to add secret
 |---|---|---|
 | `SSH_PRIVATE_KEY` | Yes | The contents of your private SSH key (e.g. `~/.ssh/id_ed25519`) |
 | `MASTER_NODE_IP` | Yes | The IP address of your control plane (master) node (e.g. `192.168.1.100`) |
-| `AGENT_IPS` | Multi-node only | Comma-separated IPs of your worker nodes (e.g. `192.168.1.101,192.168.1.102`) |
+| `ANSIBLE_USER` | Yes | The username Ansible will SSH in as (e.g. `your-user`) |
+| `K3S_TOKEN` | Yes | The cluster token set during installation (from `k3s-config.yml`) |
+| `WORKER_NODE_IPS` | Multi-node only | Comma-separated IPs of your worker nodes (e.g. `192.168.1.101,192.168.1.102`) |
 
-If `AGENT_IPS` is not set, the workflow behaves as single-node and only upgrades the server.
+If `WORKER_NODE_IPS` is not set, the workflow behaves as single-node and only upgrades the master node.
+
+The workflow generates a temporary runtime config from these secrets at run time. Your real IP addresses, username, and token are never stored in the repository.
 
 ### Multi-node caveat
 
-When `AGENT_IPS` is set, the workflow supports multi-node clusters. The `upgrade.yml` playbook will:
+When `WORKER_NODE_IPS` is set, the workflow supports multi-node clusters. The `upgrade.yml` playbook will:
 
 - Upgrade master nodes **one at a time** (to avoid etcd instability)
 - Upgrade all agent nodes **in parallel**

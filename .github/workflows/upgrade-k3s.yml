@@ -76,9 +76,9 @@ jobs:
           # Always scan the master node
           ssh-keyscan ${{ secrets.MASTER_NODE_IP }} >> ~/.ssh/known_hosts
 
-          # If AGENT_IPS is set, scan each agent node too (comma-separated)
-          if [ -n "${{ secrets.AGENT_IPS }}" ]; then
-            echo "${{ secrets.AGENT_IPS }}" | tr ',' '\n' | while read -r ip; do
+          # If WORKER_NODE_IPS is set, scan each worker node too (comma-separated)
+          if [ -n "${{ secrets.WORKER_NODE_IPS }}" ]; then
+            echo "${{ secrets.WORKER_NODE_IPS }}" | tr ',' '\n' | while read -r ip; do
               ip=$(echo "$ip" | tr -d ' ')
               [ -n "$ip" ] && ssh-keyscan "$ip" >> ~/.ssh/known_hosts
             done
@@ -90,7 +90,53 @@ jobs:
       - name: Initialise submodules
         run: git submodule update --init --recursive
 
-      - name: Update k3s_version in config
+      - name: Generate runtime k3s-config
+        env:
+          MASTER_NODE_IP: ${{ secrets.MASTER_NODE_IP }}
+          WORKER_NODE_IPS: ${{ secrets.WORKER_NODE_IPS }}
+          ANSIBLE_USER: ${{ secrets.ANSIBLE_USER }}
+          K3S_TOKEN: ${{ secrets.K3S_TOKEN }}
+          K3S_VERSION: ${{ steps.version.outputs.k3s_version }}
+        run: |
+          python3 << 'EOF'
+          import os, yaml
+
+          master_ip = os.environ['MASTER_NODE_IP']
+          agent_ips_raw = os.environ.get('WORKER_NODE_IPS', '').strip()
+          ansible_user = os.environ['ANSIBLE_USER']
+          k3s_token = os.environ['K3S_TOKEN']
+          k3s_version = os.environ['K3S_VERSION']
+
+          agent_hosts = {}
+          if agent_ips_raw:
+              for ip in agent_ips_raw.split(','):
+                  ip = ip.strip()
+                  if ip:
+                      agent_hosts[ip] = None
+
+          config = {
+              'k3s_cluster': {
+                  'children': {
+                      'server': {'hosts': {master_ip: None}},
+                      'agent': {'hosts': agent_hosts or {}}
+                  },
+                  'vars': {
+                      'ansible_user': ansible_user,
+                      'ansible_ssh_private_key_file': '~/.ssh/id_ed25519',
+                      'k3s_version': k3s_version,
+                      'token': k3s_token,
+                      'api_endpoint': "{{ hostvars[groups['server'][0]]['ansible_host'] | default(groups['server'][0]) }}",
+                      'extra_server_args': '--disable traefik'
+                  }
+              }
+          }
+
+          with open('runtime-k3s-config.yml', 'w') as f:
+              yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+          print("Generated runtime-k3s-config.yml")
+          EOF
+
+      - name: Update k3s_version in template config
         run: |
           sed -i "s/k3s_version:.*/k3s_version: ${{ steps.version.outputs.k3s_version }}/" \
             k3s-config.yml
@@ -98,7 +144,7 @@ jobs:
       - name: Run upgrade playbook
         run: |
           ansible-playbook k3s-ansible/playbooks/upgrade.yml \
-            -i k3s-config.yml
+            -i runtime-k3s-config.yml
 
       - name: Commit updated version
         run: |
