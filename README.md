@@ -208,7 +208,15 @@ For both setups, replace the following placeholders:
 - `<YOUR_UBUNTU_USERNAME>` — your username on the server(s)
 - `<GENERATE_A_SECURE_TOKEN_HERE>` — a secure random token (e.g. `openssl rand -hex 32`); this must be the same across all nodes
 
-### 7. Install K3s
+### 7. Install required Ansible collections
+
+The K3s playbook requires the `ansible.posix` collection in addition to the ones listed in `requirements.yml`. Install all required collections:
+
+```bash
+ansible-galaxy collection install -r requirements.yml
+```
+
+### 8. Install K3s
 
 ```bash
 ansible-playbook -i k3s/k3s-config-local.yml k3s-ansible/playbooks/site.yml --ask-become-pass
@@ -224,7 +232,7 @@ To rename the context to something more meaningful (e.g. `k3s-homelab`), run:
 kubectl config rename-context k3s-ansible k3s-homelab
 ```
 
-### 8. Verify the cluster
+### 9. Verify the cluster
 
 Switch to the homelab context and check the nodes:
 
