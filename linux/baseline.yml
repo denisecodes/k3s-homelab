@@ -57,6 +57,14 @@
       community.general.timezone:
         name: "{{ timezone | default('UTC') }}"
 
+    - name: Configure passwordless sudo for Ansible user
+      ansible.builtin.lineinfile:
+        path: /etc/sudoers.d/{{ ansible_user }}
+        line: "{{ ansible_user }} ALL=(ALL) NOPASSWD:ALL"
+        create: true
+        mode: '0440'
+        validate: 'visudo -cf %s'
+
     # ── LVM: expand logical volume to use all available disk space ─────
     # Ubuntu Server's default installer only allocates ~100GB even on larger
     # disks. These tasks extend the logical volume and resize the filesystem
