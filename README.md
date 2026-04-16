@@ -81,7 +81,14 @@ git submodule update --init --recursive
 
 ### 4. Update the inventory
 
-Edit `linux/inventory/hosts.ini` and fill in your details. The inventory is split into `[master]` and `[workers]` groups so the playbook can apply different rules to each (e.g. port 6443 is only opened on the master).
+Copy the inventory template and fill in your details:
+
+```bash
+cp linux/inventory/hosts.ini linux/inventory/hosts-local.ini
+# edit hosts-local.ini with your real IPs, username, and timezone
+```
+
+The inventory is split into `[master]` and `[workers]` groups so the playbook can apply different rules to each (e.g. port 6443 is only opened on the master).
 
 **Single node:**
 
@@ -126,7 +133,7 @@ Set `timezone` to your local timezone. You can find the correct string at [https
 ### 5. Run the Ansible playbook
 
 ```bash
-ansible-playbook -i linux/inventory/hosts.ini linux/baseline.yml --ask-become-pass
+ansible-playbook -i linux/inventory/hosts-local.ini linux/baseline.yml --ask-become-pass
 ```
 
 You will be prompted for the become (sudo) password of the remote user. The playbook will then:
@@ -139,7 +146,12 @@ You will be prompted for the become (sudo) password of the remote user. The play
 
 ### 6. Configure K3s
 
-Edit `k3s/k3s-config.yml` and fill in your details:
+Copy the K3s config template and fill in your details:
+
+```bash
+cp k3s/k3s-config.yml k3s/k3s-config-local.yml
+# edit k3s-config-local.yml with your real IPs, username, and token
+```
 
 **Single node (default):**
 
@@ -199,7 +211,7 @@ For both setups, replace the following placeholders:
 ### 7. Install K3s
 
 ```bash
-ansible-playbook -i k3s/k3s-config.yml k3s-ansible/playbooks/site.yml --ask-become-pass
+ansible-playbook -i k3s/k3s-config-local.yml k3s-ansible/playbooks/site.yml --ask-become-pass
 ```
 
 You will be prompted for the become (sudo) password. This will install and configure K3s on your server.
