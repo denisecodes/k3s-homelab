@@ -5,6 +5,13 @@ on:
     branches:
       - main
     types: [opened, synchronize, reopened]
+    paths:
+      - 'linux/**'
+      - 'argocd/**'
+      - 'helm/**'
+      - 'requirements.yml'
+      - '.ansible-lint'
+      - '.github/workflows/lint.yml'
 
 jobs:
   ansible-lint:
