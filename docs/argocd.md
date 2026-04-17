@@ -8,6 +8,8 @@ ArgoCD is installed via Helm using the official `argo/argo-cd` chart. The playbo
 - Deploys ArgoCD into the `argocd` namespace
 - Installs the `argocd` CLI, version-matched to the deployed chart
 - Creates a dedicated user (configured via `argocd_user`) and disables the default `admin` account
+- Registers the k3s-apps repository via SSH deploy key
+- Deploys the `argocd-apps` Application that watches the k3s-apps repository for application manifests
 
 ## Prerequisites
 
@@ -155,8 +157,8 @@ kubectl delete namespace argocd
 | `argocd_nodeport` | `30080` | NodePort for the ArgoCD UI — access at `http://<node-ip>:<nodeport>` |
 | `argocd_user` | *(your choice)* | Dedicated ArgoCD user — set this at the top of the playbook (default `admin` is disabled) |
 | `argocd_user_password` | *(vault)* | Password for your dedicated user, read from `argocd/vault/secrets.yml` |
-| `argocd_repo_url` | `git@github.com:<YOUR_USERNAME>/<YOUR_APPS_REPO>.git` | SSH URL of the app-of-apps repo registered in ArgoCD |
-| `argocd_repo_ssh_key` | *(vault)* | SSH private key ArgoCD uses to pull from the app-of-apps repo |
+| `argocd_repo_url` | `git@github.com:<YOUR_USERNAME>/<YOUR_APPS_REPO>.git` | SSH URL of the k3s-apps repo registered in ArgoCD |
+| `argocd_repo_ssh_key` | *(vault)* | SSH private key ArgoCD uses to pull from the k3s-apps repo |
 
 To pin a different chart version, update `argocd_chart_version` in `argocd/playbooks/argocd-setup.yml`. Check available versions at [ArtifactHub](https://artifacthub.io/packages/helm/argo/argo-cd).
 
@@ -262,9 +264,11 @@ The UI method is useful if you're already working in the browser or if you encou
 
 ### GitOps app deployment via ArgoCD
 
-With the repo registered, the next step is to define `Application` manifests inside `k3s-apps` and have ArgoCD sync them automatically:
+With the playbook complete, ArgoCD is now watching the `k3s-apps` repository. The `argocd-apps` Application is automatically deployed and monitors the `apps/` directory for new application manifests.
 
-1. **Create an `Application` manifest** in the `k3s-apps` repo — define what to deploy and where:
+To deploy a new application:
+
+1. **Create an `Application` manifest** in the `k3s-apps/apps/` directory:
    ```yaml
    apiVersion: argoproj.io/v1alpha1
    kind: Application
@@ -274,9 +278,9 @@ With the repo registered, the next step is to define `Application` manifests ins
    spec:
      project: default
      source:
-       repoURL: git@github.com:<YOUR_USERNAME>/<YOUR_APPS_REPO>.git
-       targetRevision: HEAD
-       path: charts/my-app
+       repoURL: https://my-helm-repo.example.com
+       targetRevision: 1.0.0
+       chart: my-app
      destination:
        server: https://kubernetes.default.svc
        namespace: my-app
@@ -286,4 +290,4 @@ With the repo registered, the next step is to define `Application` manifests ins
          selfHeal: true
    ```
 
-2. **Automate with Ansible** — add `kubernetes.core.k8s` tasks to `argocd-setup.yml` to apply `Application` manifests, so the full cluster state is declared in code and reproduced by running the playbook.
+2. **Commit and push** to the k3s-apps repository — ArgoCD will automatically detect and sync the new application.
