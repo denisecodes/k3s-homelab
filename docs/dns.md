@@ -40,13 +40,13 @@ Update your router's DHCP settings to hand out the server's IP as the DNS server
 
 1. Open the **ASUS Router** app on your phone
 2. Go to **Settings > LAN > DHCP Server**
-3. Under **DNS and WINS Server Setting**, set **DNS Server 1** to your server's LAN IP (e.g. `192.168.1.100`)
+3. Under **DNS and WINS Server Setting**, set **DNS Server 1** to your server's LAN IP (e.g. `<YOUR_SERVER_IP>`)
 4. Optionally set **DNS Server 2** to `1.1.1.1` as a fallback
 5. Tap **Apply**
 
 ### ASUS RT-AX59U (via web panel)
 
-1. Open `http://192.168.1.1` in your browser
+1. Open `http://<YOUR_ROUTER_IP>` in your browser
 2. Log in with your router admin credentials
 3. Go to **LAN** in the left sidebar, then the **DHCP Server** tab
 4. Under **DNS and WINS Server Setting**, set **DNS Server 1** to your server's LAN IP

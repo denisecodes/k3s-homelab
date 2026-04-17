@@ -121,11 +121,11 @@ k3s_cluster:
   children:
     server:
       hosts:
-        192.16.35.11:
+        <YOUR_MASTER_IP>:
     agent:
       hosts:
-        192.16.35.12:
-        192.16.35.13:
+        <YOUR_WORKER_1_IP>:
+        <YOUR_WORKER_2_IP>:
 ```
 
 #### How the upgrade playbook handles multiple nodes

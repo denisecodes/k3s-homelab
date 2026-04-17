@@ -122,10 +122,10 @@ For repeated CLI usage, log in once and the session will be saved:
 
 ```bash
 # Log in via the NodePort (replace with your node IP)
-argocd login 192.168.1.100:30080 --username myuser --plaintext
+argocd login <YOUR_NODE_IP>:30080 --username myuser --plaintext
 ```
 
-- Replace `192.168.1.100` with your actual node IP
+- Replace `<YOUR_NODE_IP>` with your actual node IP
 - Replace `myuser` with the username you set in `argocd_user`
 - `--plaintext` is required because the NodePort is HTTP, not HTTPS
 
@@ -155,7 +155,7 @@ kubectl delete namespace argocd
 | `argocd_nodeport` | `30080` | NodePort for the ArgoCD UI — access at `http://<node-ip>:<nodeport>` |
 | `argocd_user` | *(your choice)* | Dedicated ArgoCD user — set this at the top of the playbook (default `admin` is disabled) |
 | `argocd_user_password` | *(vault)* | Password for your dedicated user, read from `argocd/vault/secrets.yml` |
-| `argocd_repo_url` | `git@github.com:denisecodes/k3s-apps.git` | SSH URL of the app-of-apps repo registered in ArgoCD |
+| `argocd_repo_url` | `git@github.com:<YOUR_USERNAME>/<YOUR_APPS_REPO>.git` | SSH URL of the app-of-apps repo registered in ArgoCD |
 | `argocd_repo_ssh_key` | *(vault)* | SSH private key ArgoCD uses to pull from the app-of-apps repo |
 
 To pin a different chart version, update `argocd_chart_version` in `argocd/playbooks/argocd-setup.yml`. Check available versions at [ArtifactHub](https://artifacthub.io/packages/helm/argo/argo-cd).
@@ -178,7 +178,7 @@ This produces two files:
 
 ### 6.2 Add the public key as a deploy key on GitHub
 
-1. Go to `https://github.com/denisecodes/k3s-apps` → **Settings → Deploy keys → Add deploy key**
+1. Go to `https://github.com/<YOUR_USERNAME>/<YOUR_APPS_REPO>` → **Settings → Deploy keys → Add deploy key**
 2. Title: `argocd-k3s-homelab`
 3. Paste the contents of `~/.ssh/argocd_k3s_apps.pub`
 4. Leave **Allow write access** unchecked — ArgoCD only needs read access
@@ -231,19 +231,21 @@ After re-running the playbook, verify that ArgoCD successfully registered the `k
 
 #### CLI verification
 
-SSH into the master node and run:
+SSH into the master node. If you haven't already logged in to ArgoCD via the CLI, you'll need to authenticate first (see section 5.1 for login instructions).
+
+You can verify the repo using port-forwarding without a persistent login:
 
 ```bash
 argocd repo list --port-forward --port-forward-namespace argocd
 ```
 
-Or if you've logged in (see section 5.1):
+Or if you've already logged in:
 
 ```bash
 argocd repo list
 ```
 
-You should see `git@github.com:denisecodes/k3s-apps.git` with a `Successful` connection status.
+You should see `git@github.com:<YOUR_USERNAME>/<YOUR_APPS_REPO>.git` with a `Successful` connection status.
 
 #### UI verification (alternative)
 
@@ -252,7 +254,7 @@ If you prefer to verify via the web interface:
 1. Open the ArgoCD UI in your browser: `http://<node-ip>:30080`
 2. Log in with your username and password
 3. Navigate to **Settings** (gear icon in the left sidebar) → **Repositories**
-4. You should see `git@github.com:denisecodes/k3s-apps.git` listed with a green **Connected** status
+4. You should see `git@github.com:<YOUR_USERNAME>/<YOUR_APPS_REPO>.git` listed with a green **Connected** status
 
 The UI method is useful if you're already working in the browser or if you encounter CLI authentication issues.
 
@@ -272,7 +274,7 @@ With the repo registered, the next step is to define `Application` manifests ins
    spec:
      project: default
      source:
-       repoURL: git@github.com:denisecodes/k3s-apps.git
+       repoURL: git@github.com:<YOUR_USERNAME>/<YOUR_APPS_REPO>.git
        targetRevision: HEAD
        path: charts/my-app
      destination:

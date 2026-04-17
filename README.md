@@ -69,7 +69,7 @@ ssh user@192.168.1.100
 Clone this repo on your local machine:
 
 ```bash
-git clone https://github.com/denisecodes/k3s-homelab
+git clone https://github.com/<YOUR_USERNAME>/<YOUR_REPO>
 cd k3s-homelab
 ```
 
