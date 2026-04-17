@@ -1,3 +1,3 @@
 ---
 - name: Converge
-  import_playbook: ../../linux/baseline.yml
+  import_playbook: ../../linux/playbooks/server-setup.yml

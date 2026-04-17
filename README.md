@@ -133,7 +133,7 @@ Set `timezone` to your local timezone. You can find the correct string at [https
 ### 5. Run the Ansible playbook
 
 ```bash
-ansible-playbook -i linux/inventory/hosts-local.ini linux/baseline.yml --ask-become-pass
+ansible-playbook -i linux/inventory/hosts-local.ini linux/playbooks/server-setup.yml --ask-become-pass
 ```
 
 You will be prompted for the become (sudo) password of the remote user. The playbook will then:

@@ -17,7 +17,7 @@ Tailscale creates a secure WireGuard-based mesh VPN between your devices. For th
 Run the install playbook to add the Tailscale apt repository, install the package, and start the `tailscaled` service:
 
 ```bash
-ansible-playbook -i linux/inventory/hosts-local.ini linux/tailscale-install.yml \
+ansible-playbook -i linux/inventory/hosts-local.ini linux/playbooks/tailscale-install.yml \
   --ask-become-pass
 ```
 
@@ -58,7 +58,7 @@ ansible-vault encrypt linux/vault/secrets-local.yml
 Then run the auth playbook:
 
 ```bash
-ansible-playbook -i linux/inventory/hosts-local.ini linux/tailscale-auth.yml \
+ansible-playbook -i linux/inventory/hosts-local.ini linux/playbooks/tailscale-auth.yml \
   --ask-become-pass --ask-vault-pass
 ```
 

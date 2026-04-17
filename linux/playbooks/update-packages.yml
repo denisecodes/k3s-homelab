@@ -4,7 +4,7 @@
 #   # edit hosts-local.ini with your real IPs, username, and timezone
 #
 # Run with:
-#   ansible-playbook -i linux/inventory/hosts-local.ini linux/update-packages.yml \
+#   ansible-playbook -i linux/inventory/hosts-local.ini linux/playbooks/update-packages.yml \
 #     --ask-become-pass
 - name: Safe package updates
   hosts: homelab

@@ -3,7 +3,7 @@
 # See docs/tailscale.md for the full setup guide including auth key generation.
 #
 # Run with:
-#   ansible-playbook -i linux/inventory/hosts-local.ini linux/tailscale-install.yml \
+#   ansible-playbook -i linux/inventory/hosts-local.ini linux/playbooks/tailscale-install.yml \
 #     --ask-become-pass
 
 - name: Install Tailscale

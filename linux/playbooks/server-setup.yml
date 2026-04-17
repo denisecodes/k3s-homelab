@@ -4,7 +4,7 @@
 #   # edit hosts-local.ini with your real IPs, username, and timezone
 #
 # Run with:
-#   ansible-playbook -i linux/inventory/hosts-local.ini linux/baseline.yml --ask-become-pass
+#   ansible-playbook -i linux/inventory/hosts-local.ini linux/playbooks/server-setup.yml --ask-become-pass
 - name: Baseline server setup
   hosts: homelab
   become: true
