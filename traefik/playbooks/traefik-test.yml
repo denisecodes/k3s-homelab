@@ -148,10 +148,10 @@
       ansible.builtin.debug:
         msg: >-
           DNS test: {{ test_hostname }} resolves to {{ dns_result.stdout | trim }}.
-          {% if dns_result.stdout | trim == ansible_default_ipv4.address %}
+          {% if dns_result.stdout | trim == ansible_facts['default_ipv4']['address'] %}
           Local DNS is working correctly.
           {% else %}
-          WARNING: Expected {{ ansible_default_ipv4.address }}. Check dnsmasq configuration.
+          WARNING: Expected {{ ansible_facts['default_ipv4']['address'] }}. Check dnsmasq configuration.
           {% endif %}
       tags: [deploy]
 
