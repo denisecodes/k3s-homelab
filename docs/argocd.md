@@ -118,23 +118,93 @@ kubectl delete namespace argocd
 | `argocd_nodeport` | `30080` | NodePort for the ArgoCD UI — access at `http://<node-ip>:<nodeport>` |
 | `argocd_user` | *(your choice)* | Dedicated ArgoCD user — set this at the top of the playbook (default `admin` is disabled) |
 | `argocd_user_password` | *(vault)* | Password for your dedicated user, read from `argocd/vault/secrets.yml` |
+| `argocd_repo_url` | `git@github.com:denisecodes/k3s-apps.git` | SSH URL of the app-of-apps repo registered in ArgoCD |
+| `argocd_repo_ssh_key` | *(vault)* | SSH private key ArgoCD uses to pull from the app-of-apps repo |
 
 To pin a different chart version, update `argocd_chart_version` in `argocd/playbooks/argocd-setup.yml`. Check available versions at [ArtifactHub](https://artifacthub.io/packages/helm/argo/argo-cd).
+
+## 6. Register the k3s-apps repository in ArgoCD
+
+ArgoCD needs read access to the `k3s-apps` repo to watch and sync application manifests. This is done via an SSH deploy key — it never expires and is scoped to a single repository (read-only).
+
+### 6.1 Generate the SSH key pair
+
+Run this locally (no passphrase):
+
+```bash
+ssh-keygen -t ed25519 -C "argocd@k3s-homelab" -f ~/.ssh/argocd_k3s_apps -N ""
+```
+
+This produces two files:
+- `~/.ssh/argocd_k3s_apps.pub` — the public key (added to GitHub)
+- `~/.ssh/argocd_k3s_apps` — the private key (added to the vault)
+
+### 6.2 Add the public key as a deploy key on GitHub
+
+1. Go to `https://github.com/denisecodes/k3s-apps` → **Settings → Deploy keys → Add deploy key**
+2. Title: `argocd-k3s-homelab`
+3. Paste the contents of `~/.ssh/argocd_k3s_apps.pub`
+4. Leave **Allow write access** unchecked — ArgoCD only needs read access
+5. Click **Add key**
+
+### 6.3 Add the private key to the vault
+
+Decrypt your local vault file:
+
+```bash
+ansible-vault decrypt argocd/vault/secrets-local.yml
+```
+
+Open `argocd/vault/secrets-local.yml` and add the private key using a YAML multiline literal block (the indentation and line breaks must be preserved exactly):
+
+```yaml
+argocd_repo_ssh_key: |
+  -----BEGIN OPENSSH PRIVATE KEY-----
+  <paste the contents of ~/.ssh/argocd_k3s_apps here>
+  -----END OPENSSH PRIVATE KEY-----
+```
+
+You can get the full key contents with:
+
+```bash
+cat ~/.ssh/argocd_k3s_apps
+```
+
+Re-encrypt the vault once done:
+
+```bash
+ansible-vault encrypt argocd/vault/secrets-local.yml
+```
+
+> **Never commit `secrets-local.yml` unencrypted** and never commit the private key file directly.
+
+### 6.4 Re-run the playbook
+
+The repo registration is handled automatically by the playbook. Re-running it will apply the ArgoCD repository `Secret` to the cluster:
+
+```bash
+ansible-playbook -i linux/inventory/hosts-local.ini argocd/playbooks/argocd-setup.yml \
+  --ask-become-pass \
+  --ask-vault-pass
+```
+
+### 6.5 Verify the repo is registered
+
+SSH into the master node and confirm ArgoCD can see the repo:
+
+```bash
+argocd repo list
+```
+
+You should see `git@github.com:denisecodes/k3s-apps.git` with a `Successful` connection status.
 
 ## Next steps
 
 ### GitOps app deployment via ArgoCD
 
-The natural next step is to have ArgoCD watch a Git repository and automatically deploy applications via Helm. The workflow looks like this:
+With the repo registered, the next step is to define `Application` manifests inside `k3s-apps` and have ArgoCD sync them automatically:
 
-1. **Create an app-of-apps repo** — a separate Git repository (e.g. `k3s-apps`) that contains Helm charts or ArgoCD `Application` manifests for each service you want to deploy.
-
-2. **Register the repo in ArgoCD** — point ArgoCD at the repo so it can pull from it:
-   ```bash
-   argocd repo add https://github.com/your-username/k3s-apps --username your-user --password your-token
-   ```
-
-3. **Create an ArgoCD Application** — define what to deploy and where:
+1. **Create an `Application` manifest** in the `k3s-apps` repo — define what to deploy and where:
    ```yaml
    apiVersion: argoproj.io/v1alpha1
    kind: Application
@@ -144,7 +214,7 @@ The natural next step is to have ArgoCD watch a Git repository and automatically
    spec:
      project: default
      source:
-       repoURL: https://github.com/your-username/k3s-apps
+       repoURL: git@github.com:denisecodes/k3s-apps.git
        targetRevision: HEAD
        path: charts/my-app
      destination:
@@ -156,4 +226,4 @@ The natural next step is to have ArgoCD watch a Git repository and automatically
          selfHeal: true
    ```
 
-4. **Automate with Ansible** — this can be added to `argocd-setup.yml` using `kubernetes.core.k8s` to apply `Application` manifests, so the full cluster state is declared in code and reproduced by running the playbook.
+2. **Automate with Ansible** — add `kubernetes.core.k8s` tasks to `argocd-setup.yml` to apply `Application` manifests, so the full cluster state is declared in code and reproduced by running the playbook.
