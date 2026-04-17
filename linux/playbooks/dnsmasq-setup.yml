@@ -57,7 +57,7 @@
     # -- 3. Configure dnsmasq ---------------------------------------------------
     - name: Get server LAN IP
       ansible.builtin.set_fact:
-        server_ip: "{{ ansible_default_ipv4.address }}"
+        server_ip: "{{ ansible_facts['default_ipv4']['address'] }}"
 
     - name: Write dnsmasq configuration
       ansible.builtin.copy:
