@@ -1,6 +1,6 @@
 ---
 # Authenticates nodes to Tailscale and configures UFW rules.
-# Requires Tailscale to already be installed — run linux/tailscale-install.yml first.
+# Requires Tailscale to already be installed — run linux/playbooks/tailscale-install.yml first.
 # See docs/tailscale.md for the full setup guide including auth key generation.
 #
 # Before running:
@@ -9,7 +9,7 @@
 #   ansible-vault encrypt linux/vault/secrets-local.yml
 #
 # Run with:
-#   ansible-playbook -i linux/inventory/hosts-local.ini linux/tailscale-auth.yml \
+#   ansible-playbook -i linux/inventory/hosts-local.ini linux/playbooks/tailscale-auth.yml \
 #     --ask-become-pass --ask-vault-pass
 
 - name: Authenticate Tailscale and configure UFW

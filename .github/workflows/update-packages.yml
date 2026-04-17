@@ -81,7 +81,7 @@ jobs:
 
       - name: Dry run - show packages that would be upgraded
         run: |
-          ansible-playbook linux/update-packages.yml \
+          ansible-playbook linux/playbooks/update-packages.yml \
             -i runtime-inventory.ini \
             --check \
             --diff
@@ -162,7 +162,7 @@ jobs:
 
       - name: Apply package updates
         run: |
-          ansible-playbook linux/update-packages.yml \
+          ansible-playbook linux/playbooks/update-packages.yml \
             -i runtime-inventory.ini
 
       - name: Open issue on failure

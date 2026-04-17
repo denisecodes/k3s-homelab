@@ -33,7 +33,7 @@ Add a GitHub Actions workflow (`.github/workflows/code-review.yml`) that runs on
 Add a GitHub Actions workflow (`.github/workflows/lint.yml`) that runs `ansible-lint` on every pull request targeting `main`. This catches syntax errors, deprecated module usage, and best practice violations before the PR can be merged. Enforce it as a required status check in branch protection.
 
 Playbooks to lint:
-- `linux/baseline.yml`
+- `linux/playbooks/server-setup.yml`
 - `k3s/k3s-config.yml` (inventory/vars file — skip if not a playbook)
 - `argocd/playbooks/argocd-setup.yml`
 - `k3s-ansible/playbooks/site.yml` and `k3s-ansible/playbooks/upgrade.yml` (submodule — may need to pin lint rules)
@@ -42,7 +42,7 @@ Playbooks to lint:
 
 Add Molecule scenarios that run on every pull request targeting `main`, alongside ansible-lint, as required status checks before merging. Use [Molecule](https://ansible.readthedocs.io/projects/molecule/) with the Docker driver to test each playbook in isolation. Each scenario spins up a container, runs the playbook, and asserts expected state using `ansible.builtin.assert` or `testinfra`.
 
-#### `linux/baseline.yml`
+#### `linux/playbooks/server-setup.yml`
 
 Scenario: `molecule/linux/`
 
@@ -106,7 +106,7 @@ Once the playbook exists, the `upgrade-k3s.yml` GitHub Actions workflow can be e
 Add a scheduled GitHub Actions workflow (e.g. monthly) to run `apt update && apt upgrade` on the homelab servers via Ansible. This keeps packages up to date without requiring manual SSH access.
 
 - Trigger: `schedule` (e.g. first Sunday of month) + `workflow_dispatch` for manual runs
-- Playbook: reuse `linux/baseline.yml` or extract a dedicated `linux/update-packages.yml`
+- Playbook: reuse `linux/playbooks/server-setup.yml` or extract a dedicated `linux/playbooks/update-packages.yml`
 - The workflow should open a GitHub issue or send a notification on failure
 - Consider a `--check` dry-run step first to show what would be upgraded before applying
 
@@ -114,7 +114,7 @@ Add a scheduled GitHub Actions workflow (e.g. monthly) to run `apt update && apt
 
 Add dedicated workflows to provision each layer of the cluster from scratch via GitHub Actions, mirroring what is currently done manually via the terminal. Each workflow should be a separate file and triggered independently (e.g. `workflow_dispatch`) so they can be run in order or re-run individually if a step fails.
 
-- **`provision-linux.yml`** — runs `linux/baseline.yml` against the inventory; requires secrets `SSH_PRIVATE_KEY`, `MASTER_NODE_IP`, `ANSIBLE_USER`
+- **`provision-linux.yml`** — runs `linux/playbooks/server-setup.yml` against the inventory; requires secrets `SSH_PRIVATE_KEY`, `MASTER_NODE_IP`, `ANSIBLE_USER`
 - **`provision-k3s.yml`** — generates `runtime-k3s-config.yml` from secrets and runs `k3s-ansible/playbooks/site.yml` to install the cluster; requires `SSH_PRIVATE_KEY`, `MASTER_NODE_IP`, `WORKER_NODE_IPS`, `ANSIBLE_USER`, `K3S_TOKEN`
 - **`provision-argocd.yml`** — installs the `kubernetes.core` collection, decrypts `argocd/vault/secrets.yml` using an `ANSIBLE_VAULT_PASSWORD` secret, and runs `argocd/playbooks/argocd-setup.yml`
 
