@@ -9,6 +9,7 @@ on:
       - 'linux/**'
       - 'argocd/**'
       - 'helm/**'
+      - 'traefik/**'
       - 'requirements.yml'
       - '.ansible-lint'
       - '.github/workflows/lint.yml'
@@ -29,4 +30,4 @@ jobs:
         run: ansible-galaxy collection install -r requirements.yml
 
       - name: Lint playbooks
-        run: ansible-lint linux/playbooks/server-setup.yml argocd/playbooks/argocd-setup.yml helm/playbooks/helm-install.yml
+        run: ansible-lint linux/playbooks/server-setup.yml argocd/playbooks/argocd-setup.yml helm/playbooks/helm-install.yml traefik/playbooks/traefik-setup.yml

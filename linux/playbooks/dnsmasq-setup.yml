@@ -1,0 +1,139 @@
+---
+# Installs dnsmasq on the master node to provide wildcard DNS for *.home.lan.
+# After running this playbook, update your router's DHCP settings to hand out
+# the server's IP as DNS Server 1 so all LAN clients resolve *.home.lan automatically.
+#
+# Before running:
+#   cp linux/inventory/hosts.ini linux/inventory/hosts-local.ini
+#   # edit hosts-local.ini with your real IPs, username, and timezone
+#
+# Run with:
+#   ansible-playbook -i linux/inventory/hosts-local.ini linux/playbooks/dnsmasq-setup.yml \
+#     --ask-become-pass
+
+- name: Set up local DNS with dnsmasq
+  hosts: master
+  become: true
+
+  vars:
+    homelab_domain: "home.lan"
+    # Upstream DNS servers — used for all queries except *.home.lan
+    upstream_dns_1: "1.1.1.1"
+    upstream_dns_2: "8.8.8.8"
+
+  tasks:
+
+    # -- 1. Install dnsmasq -----------------------------------------------------
+    - name: Install dnsmasq
+      ansible.builtin.apt:
+        name: dnsmasq
+        state: present
+        update_cache: true
+
+    # -- 2. Disable systemd-resolved to free port 53 ----------------------------
+    # Ubuntu uses systemd-resolved by default, which binds to port 53 and
+    # conflicts with dnsmasq. We disable it and point /etc/resolv.conf to dnsmasq.
+    - name: Stop and disable systemd-resolved
+      ansible.builtin.service:
+        name: systemd-resolved
+        state: stopped
+        enabled: false
+
+    - name: Remove existing /etc/resolv.conf symlink
+      ansible.builtin.file:
+        path: /etc/resolv.conf
+        state: absent
+
+    - name: Create static /etc/resolv.conf pointing to localhost
+      ansible.builtin.copy:
+        content: |
+          # Managed by Ansible — dnsmasq-setup.yml
+          nameserver 127.0.0.1
+        dest: /etc/resolv.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+    # -- 3. Configure dnsmasq ---------------------------------------------------
+    - name: Get server LAN IP
+      ansible.builtin.set_fact:
+        server_ip: "{{ ansible_default_ipv4.address }}"
+
+    - name: Write dnsmasq configuration
+      ansible.builtin.copy:
+        content: |
+          # Managed by Ansible — dnsmasq-setup.yml
+          # Wildcard DNS: all *.{{ homelab_domain }} queries resolve to this server
+          address=/{{ homelab_domain }}/{{ server_ip }}
+
+          # Upstream DNS servers for everything else
+          server={{ upstream_dns_1 }}
+          server={{ upstream_dns_2 }}
+
+          # Only listen on localhost and the LAN interface
+          listen-address=127.0.0.1,{{ server_ip }}
+          bind-interfaces
+
+          # Don't read /etc/resolv.conf for upstream servers (we set them above)
+          no-resolv
+
+          # Cache DNS queries (default 150, increase for a small LAN)
+          cache-size=1000
+
+          # Log DNS queries (useful for debugging, disable later if noisy)
+          log-queries
+          log-facility=/var/log/dnsmasq.log
+        dest: /etc/dnsmasq.conf
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Restart dnsmasq
+
+    # -- 4. Open UFW port 53 for LAN clients ------------------------------------
+    - name: Allow DNS (UDP) through UFW
+      community.general.ufw:
+        rule: allow
+        port: 53
+        proto: udp
+
+    - name: Allow DNS (TCP) through UFW
+      community.general.ufw:
+        rule: allow
+        port: 53
+        proto: tcp
+
+    # -- 5. Enable and start dnsmasq --------------------------------------------
+    - name: Enable and start dnsmasq
+      ansible.builtin.service:
+        name: dnsmasq
+        state: started
+        enabled: true
+
+    # -- 6. Verify --------------------------------------------------------------
+    - name: Test wildcard DNS resolution
+      ansible.builtin.command: dig +short test.{{ homelab_domain }} @127.0.0.1
+      register: dns_test
+      changed_when: false
+
+    - name: Display DNS test result
+      ansible.builtin.debug:
+        msg: >-
+          DNS test: test.{{ homelab_domain }} resolves to {{ dns_test.stdout | trim }}.
+          {% if dns_test.stdout | trim == server_ip %}
+          Wildcard DNS is working correctly.
+          {% else %}
+          WARNING: Expected {{ server_ip }} but got {{ dns_test.stdout | trim }}. Check dnsmasq configuration.
+          {% endif %}
+
+    - name: Display next steps
+      ansible.builtin.debug:
+        msg: >-
+          dnsmasq is running. Next step: update your router's DHCP settings to
+          set DNS Server 1 to {{ server_ip }} so all LAN clients resolve
+          *.{{ homelab_domain }} automatically. See docs/dns.md for instructions.
+
+  handlers:
+    - name: Restart dnsmasq
+      ansible.builtin.service:
+        name: dnsmasq
+        state: restarted

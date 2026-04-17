@@ -1,0 +1,107 @@
+---
+# Before running:
+#   cp linux/inventory/hosts.ini linux/inventory/hosts-local.ini
+#   # edit hosts-local.ini with your real IPs, username, and timezone
+#
+#   ansible-galaxy collection install -r requirements.yml
+#
+# Run with:
+#   ansible-playbook -i linux/inventory/hosts-local.ini traefik/playbooks/traefik-setup.yml \
+#     --ask-become-pass
+
+- name: Install Traefik via Helm
+  hosts: master
+  become: true
+
+  vars:
+    traefik_chart_version: "36.4.0"   # https://artifacthub.io/packages/helm/traefik/traefik
+    traefik_namespace: "traefik"
+    homelab_domain: "home.lan"         # wildcard domain for local services
+
+  tasks:
+
+    # -- 1. Install prerequisites ------------------------------------------------
+    - name: Install kubernetes Python library (required by kubernetes.core modules)
+      ansible.builtin.apt:
+        name: python3-kubernetes
+        state: present
+        update_cache: true
+
+    - name: Add Traefik Helm repo
+      kubernetes.core.helm_repository:
+        name: traefik
+        repo_url: https://traefik.github.io/charts
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+    # -- 2. Install Traefik via Helm ---------------------------------------------
+    - name: Create traefik namespace
+      kubernetes.core.k8s:
+        name: "{{ traefik_namespace }}"
+        api_version: v1
+        kind: Namespace
+        state: present
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+    - name: Install Traefik chart
+      kubernetes.core.helm:
+        name: traefik
+        chart_ref: traefik/traefik
+        chart_version: "{{ traefik_chart_version }}"
+        release_namespace: "{{ traefik_namespace }}"
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+        atomic: true
+        values:
+          # Use K3s ServiceLB — Traefik gets an external IP from the node
+          service:
+            type: LoadBalancer
+          # Enable the Traefik dashboard (not exposed externally by default)
+          ingressRoute:
+            dashboard:
+              enabled: true
+          # Entrypoints
+          ports:
+            web:
+              port: 8000
+              exposedPort: 80
+              protocol: TCP
+            websecure:
+              port: 8443
+              exposedPort: 443
+              protocol: TCP
+          # Log level
+          logs:
+            general:
+              level: INFO
+      register: traefik_helm_install
+      retries: 3
+      delay: 15
+      until: traefik_helm_install is succeeded
+
+    # -- 3. Wait for Traefik to be ready -----------------------------------------
+    - name: Wait for Traefik deployment to be ready
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        namespace: "{{ traefik_namespace }}"
+        name: traefik
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+      register: traefik_deploy
+      until: traefik_deploy.resources[0].status.readyReplicas | default(0) >= 1
+      retries: 20
+      delay: 10
+
+    - name: Get Traefik LoadBalancer IP
+      kubernetes.core.k8s_info:
+        kind: Service
+        namespace: "{{ traefik_namespace }}"
+        name: traefik
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+      register: traefik_svc
+
+    - name: Display Traefik service info
+      ansible.builtin.debug:
+        msg: >-
+          Traefik is running. LoadBalancer IP:
+          {{ traefik_svc.resources[0].status.loadBalancer.ingress[0].ip | default('pending — check kubectl get svc -n traefik') }}.
+          HTTP on port 80, HTTPS on port 443.
+          Dashboard available via: kubectl port-forward -n traefik deploy/traefik 9000:9000
+          then open http://localhost:9000/dashboard/
