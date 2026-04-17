@@ -70,16 +70,16 @@ The playbook will:
 The output will look like this:
 
 ```
-ok: [192.168.50.x] => {
-    "msg": "Tailscale IP for 192.168.50.x: 100.64.0.1"
+ok: [<YOUR_NODE_LOCAL_IP>] => {
+    "msg": "Tailscale IP for <YOUR_NODE_LOCAL_IP>: 100.64.0.1"
 }
 ```
 
-> The IP on the left (`192.168.50.x`) is your node's local network IP — this is just how Ansible identifies the host from your inventory. The IP on the right (`100.64.0.1`) is the Tailscale IP. **This is the one you need** — use it to update `MASTER_NODE_IP` in your GitHub Actions secrets.
+> The IP on the left (`<YOUR_NODE_LOCAL_IP>`) is your node's local network IP — this is just how Ansible identifies the host from your inventory. The IP on the right (`100.64.0.1`) is the Tailscale IP. **This is the one you need** — use it to update `MASTER_NODE_IP` in your GitHub Actions secrets.
 
 ## 5. Configure GitHub Actions secrets
 
-Update the following secrets in your repository at [https://github.com/denisecodes/k3s-homelab/settings/secrets/actions](https://github.com/denisecodes/k3s-homelab/settings/secrets/actions):
+Update the following secrets in your repository at `https://github.com/<YOUR_USERNAME>/<YOUR_REPO>/settings/secrets/actions`:
 
 | Secret | Value |
 |--------|-------|

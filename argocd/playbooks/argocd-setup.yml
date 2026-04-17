@@ -22,9 +22,9 @@
   vars:
     argocd_chart_version: "7.8.28"   # https://artifacthub.io/packages/helm/argo/argo-cd
     argocd_namespace: "argocd"
-    argocd_user: "denise"     # your ArgoCD username — change this to whatever you want
+    argocd_user: "<YOUR_USERNAME>"     # your ArgoCD username — change this to whatever you want
     argocd_nodeport: 30080    # access ArgoCD at http://<node-ip>:30080
-    argocd_repo_url: "git@github.com:denisecodes/k3s-apps.git"  # SSH URL of the app-of-apps repo
+    argocd_repo_url: "git@github.com:<YOUR_USERNAME>/<YOUR_APPS_REPO>.git"  # SSH URL of the app-of-apps repo
 
   tasks:
 
