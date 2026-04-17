@@ -17,6 +17,8 @@
 
   vars:
     homelab_domain: "home.lan"
+    # Traefik LoadBalancer IP — all *.home.lan traffic routes through Traefik
+    traefik_ip: "192.168.50.113"
     # Upstream DNS servers — used for all queries except *.home.lan
     upstream_dns_1: "1.1.1.1"
     upstream_dns_2: "8.8.8.8"
@@ -63,8 +65,8 @@
       ansible.builtin.copy:
         content: |
           # Managed by Ansible — dnsmasq-setup.yml
-          # Wildcard DNS: all *.{{ homelab_domain }} queries resolve to this server
-          address=/{{ homelab_domain }}/{{ server_ip }}
+          # Wildcard DNS: all *.{{ homelab_domain }} queries resolve to Traefik LoadBalancer
+          address=/{{ homelab_domain }}/{{ traefik_ip }}
 
           # Upstream DNS servers for everything else
           server={{ upstream_dns_1 }}
@@ -119,10 +121,10 @@
       ansible.builtin.debug:
         msg: >-
           DNS test: test.{{ homelab_domain }} resolves to {{ dns_test.stdout | trim }}.
-          {% if dns_test.stdout | trim == server_ip %}
-          Wildcard DNS is working correctly.
+          {% if dns_test.stdout | trim == traefik_ip %}
+          Wildcard DNS is working correctly - resolving to Traefik LoadBalancer.
           {% else %}
-          WARNING: Expected {{ server_ip }} but got {{ dns_test.stdout | trim }}. Check dnsmasq configuration.
+          WARNING: Expected {{ traefik_ip }} but got {{ dns_test.stdout | trim }}. Check dnsmasq configuration.
           {% endif %}
 
     - name: Display next steps

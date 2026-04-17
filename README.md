@@ -259,6 +259,24 @@ NAME         STATUS   ROLES                  AGE   VERSION
 home-k8s     Ready    control-plane,master   10m   v1.33.10+k3s1
 ```
 
+## Accessing services
+
+### Via friendly hostnames (recommended)
+
+Once you've configured local DNS (see [docs/dns.md](docs/dns.md)), services with Traefik IngressRoutes can be accessed via friendly hostnames:
+
+- **ArgoCD**: http://argocd.home.lan
+- **Longhorn**: http://longhorn.home.lan
+
+New services automatically get DNS resolution when you create a Traefik IngressRoute. See `ingress/README.md` for examples.
+
+### Via NodePort (fallback)
+
+Services are also accessible via NodePort using `http://<node-ip>:<port>`:
+
+- **ArgoCD**: http://192.168.50.113:30080
+- **Longhorn**: Check the service port with `kubectl get svc -n longhorn-system`
+
 ## Upgrading K3s
 
 For full details on the upgrade process, including the automated GitHub Actions workflow and manual steps, see [docs/upgrading.md](docs/upgrading.md).

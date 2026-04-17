@@ -6,11 +6,12 @@ This document covers how to set up local DNS so homelab services are reachable b
 
 [dnsmasq](https://thekelleys.org.uk/dnsmasq/doc.html) runs on the homelab server and provides wildcard DNS resolution:
 
-- Any `*.home.lan` query resolves to the server's LAN IP
+- Any `*.home.lan` query resolves to the **Traefik LoadBalancer IP** (192.168.50.113)
+- Traefik routes traffic to the appropriate service based on the hostname
 - All other DNS queries are forwarded to upstream resolvers (Cloudflare `1.1.1.1` and Google `8.8.8.8`)
 - The router's DHCP hands out the server's IP as the DNS server for all LAN clients
 
-This means new apps automatically get DNS — no per-app DNS entries needed.
+This means new apps automatically get DNS — no per-app DNS entries needed. Simply create a Traefik IngressRoute with the desired hostname.
 
 ## Prerequisites
 
@@ -74,10 +75,21 @@ From any device on your LAN:
 nslookup whoami.home.lan
 ```
 
-This should return your server's LAN IP. If it doesn't, check that:
+This should return the Traefik LoadBalancer IP (192.168.50.113). If it doesn't, check that:
 - dnsmasq is running on the server: `sudo systemctl status dnsmasq`
 - The router DHCP is handing out the correct DNS: check your device's DNS settings
 - UFW is allowing port 53: `sudo ufw status`
+
+## 5. Access services via hostname
+
+Services with Traefik IngressRoutes can be accessed via their configured hostnames:
+
+- **ArgoCD**: http://argocd.home.lan
+- **Longhorn**: http://longhorn.home.lan
+
+To add a new service, create a Traefik IngressRoute in the k3s-apps repository. See examples in:
+- `apps/argocd/ingressroute.yaml`
+- `apps/longhorn/ingressroute.yaml`
 
 ## Configuration
 
@@ -86,6 +98,7 @@ Key variables in `linux/playbooks/dnsmasq-setup.yml`:
 | Variable | Default | Description |
 |---|---|---|
 | `homelab_domain` | `home.lan` | Wildcard domain for local services |
+| `traefik_ip` | `192.168.50.113` | Traefik LoadBalancer IP (all `*.home.lan` traffic routes here) |
 | `upstream_dns_1` | `1.1.1.1` | Primary upstream DNS (Cloudflare) |
 | `upstream_dns_2` | `8.8.8.8` | Secondary upstream DNS (Google) |
 
