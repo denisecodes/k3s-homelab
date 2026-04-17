@@ -100,6 +100,43 @@ The playbook installs the `argocd` CLI on the master node. To confirm it is work
 argocd version
 ```
 
+### 5.1 Logging in to ArgoCD via CLI
+
+Before you can run ArgoCD CLI commands like `argocd repo list` or `argocd app list`, you need to log in. The CLI needs to know where the ArgoCD server is and authenticate with it.
+
+There are two ways to do this:
+
+#### Option 1: Port-forward (recommended for quick checks)
+
+This method uses `kubectl` port-forwarding to access the ArgoCD API server without needing to specify a server address:
+
+```bash
+argocd repo list --port-forward --port-forward-namespace argocd
+```
+
+You can use `--port-forward` with any `argocd` CLI command. This is the simplest method for one-off commands.
+
+#### Option 2: Persistent login session
+
+For repeated CLI usage, log in once and the session will be saved:
+
+```bash
+# Log in via the NodePort (replace with your node IP)
+argocd login 192.168.50.113:30080 --username denise --plaintext
+```
+
+- Replace `192.168.50.113` with your actual node IP
+- Replace `denise` with the username you set in `argocd_user`
+- `--plaintext` is required because the NodePort is HTTP, not HTTPS
+
+You'll be prompted for your password. Once logged in, the session is saved to `~/.config/argocd/config` and future commands will use it automatically.
+
+To verify your login:
+
+```bash
+argocd account get-user-info
+```
+
 ## Uninstalling ArgoCD
 
 Because ArgoCD is managed by Helm, it can be cleanly removed with:
@@ -190,13 +227,34 @@ ansible-playbook -i linux/inventory/hosts-local.ini argocd/playbooks/argocd-setu
 
 ### 6.5 Verify the repo is registered
 
-SSH into the master node and confirm ArgoCD can see the repo:
+After re-running the playbook, verify that ArgoCD successfully registered the `k3s-apps` repository.
+
+#### CLI verification
+
+SSH into the master node and run:
+
+```bash
+argocd repo list --port-forward --port-forward-namespace argocd
+```
+
+Or if you've logged in (see section 5.1):
 
 ```bash
 argocd repo list
 ```
 
 You should see `git@github.com:denisecodes/k3s-apps.git` with a `Successful` connection status.
+
+#### UI verification (alternative)
+
+If you prefer to verify via the web interface:
+
+1. Open the ArgoCD UI in your browser: `http://<node-ip>:30080`
+2. Log in with your username and password
+3. Navigate to **Settings** (gear icon in the left sidebar) → **Repositories**
+4. You should see `git@github.com:denisecodes/k3s-apps.git` listed with a green **Connected** status
+
+The UI method is useful if you're already working in the browser or if you encounter CLI authentication issues.
 
 ## Next steps
 
