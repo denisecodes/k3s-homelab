@@ -77,18 +77,12 @@ ArgoCD is exposed via **NodePort** on port `30080`. Open your browser and naviga
 http://<node-ip>:30080
 ```
 
-For example, if your node IP is `192.168.50.113`:
-
-```
-http://192.168.50.113:30080
-```
-
 Log in with:
 
 - **Username**: the value you set for `argocd_user` in the playbook vars
 - **Password**: the value you set in `argocd/vault/secrets-local.yml`
 
-> This address is only reachable on your local network. The `192.168.50.x` range is a private address — it is not accessible from the internet unless you explicitly configure port forwarding on your router.
+> This address is only reachable on your local network — it is not accessible from the internet unless you explicitly configure port forwarding on your router.
 
 The NodePort (`30080`) is configurable via `argocd_nodeport` in the playbook vars.
 
@@ -122,11 +116,11 @@ For repeated CLI usage, log in once and the session will be saved:
 
 ```bash
 # Log in via the NodePort (replace with your node IP)
-argocd login 192.168.50.113:30080 --username denise --plaintext
+argocd login <node-ip>:30080 --username <your-username> --plaintext
 ```
 
-- Replace `192.168.50.113` with your actual node IP
-- Replace `denise` with the username you set in `argocd_user`
+- Replace `<node-ip>` with your actual node IP
+- Replace `<your-username>` with the username you set in `argocd_user`
 - `--plaintext` is required because the NodePort is HTTP, not HTTPS
 
 You'll be prompted for your password. Once logged in, the session is saved to `~/.config/argocd/config` and future commands will use it automatically.
