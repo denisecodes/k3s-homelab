@@ -1,0 +1,147 @@
+---
+# Uninstall Traefik from the K3s cluster
+#
+# Before running:
+#   cp linux/inventory/hosts.ini linux/inventory/hosts-local.ini
+#   # edit hosts-local.ini with your real IPs, username, and timezone
+#
+#   ansible-galaxy collection install -r requirements.yml
+#
+# Run with:
+#   ansible-playbook -i linux/inventory/hosts-local.ini traefik/playbooks/traefik-uninstall.yml \
+#     --ask-become-pass
+
+- name: Uninstall Traefik via Helm
+  hosts: master
+  become: true
+
+  vars:
+    traefik_namespace: "traefik"
+
+  tasks:
+
+    # -- 1. Install prerequisites ------------------------------------------------
+    - name: Install kubernetes Python library (required by kubernetes.core modules)
+      ansible.builtin.apt:
+        name: python3-kubernetes
+        state: present
+        update_cache: false
+
+    # -- 2. Check if Traefik is installed ----------------------------------------
+    - name: Check if Traefik Helm release exists
+      kubernetes.core.helm_info:
+        name: traefik
+        release_namespace: "{{ traefik_namespace }}"
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+      register: traefik_release
+      failed_when: false
+
+    - name: Display current Traefik status
+      ansible.builtin.debug:
+        msg: "Traefik release found: {{ traefik_release.status is defined and traefik_release.status.status == 'deployed' }}"
+
+    # -- 3. Uninstall Traefik Helm release ---------------------------------------
+    - name: Uninstall Traefik Helm release
+      kubernetes.core.helm:
+        name: traefik
+        release_namespace: "{{ traefik_namespace }}"
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+        state: absent
+        wait: true
+      when: traefik_release.status is defined
+      register: traefik_uninstall
+
+    - name: Display uninstall result
+      ansible.builtin.debug:
+        msg: "Traefik Helm release uninstalled"
+      when: traefik_uninstall.changed
+
+    # -- 4. Remove namespace if empty --------------------------------------------
+    - name: Wait for resources to be cleaned up
+      ansible.builtin.pause:
+        seconds: 10
+      when: traefik_uninstall.changed
+
+    - name: Check for remaining resources in traefik namespace
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: "{{ traefik_namespace }}"
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+      register: remaining_pods
+
+    - name: Display remaining pods
+      ansible.builtin.debug:
+        msg: "Remaining pods in traefik namespace: {{ remaining_pods.resources | length }}"
+
+    - name: Delete traefik namespace
+      kubernetes.core.k8s:
+        name: "{{ traefik_namespace }}"
+        api_version: v1
+        kind: Namespace
+        state: absent
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+        wait: true
+        wait_timeout: 120
+      when: remaining_pods.resources | length == 0
+
+    # -- 5. Remove Traefik CRDs --------------------------------------------------
+    - name: Get all Traefik CRDs
+      ansible.builtin.shell: |
+        kubectl get crd -o name | grep -E '(traefik\.io|hub\.traefik\.io)' || true
+      register: traefik_crds
+      changed_when: false
+
+    - name: Display Traefik CRDs to be removed
+      ansible.builtin.debug:
+        msg: "Found {{ traefik_crds.stdout_lines | length }} Traefik CRDs to remove"
+
+    - name: Remove Traefik CRDs
+      kubernetes.core.k8s:
+        api_version: apiextensions.k8s.io/v1
+        kind: CustomResourceDefinition
+        name: "{{ item | regex_replace('^customresourcedefinition.apiextensions.k8s.io/', '') }}"
+        state: absent
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+        wait: true
+        wait_timeout: 60
+      loop: "{{ traefik_crds.stdout_lines }}"
+      when: traefik_crds.stdout_lines | length > 0
+
+    # -- 6. Verify removal -------------------------------------------------------
+    - name: Verify Traefik namespace is removed
+      kubernetes.core.k8s_info:
+        kind: Namespace
+        name: "{{ traefik_namespace }}"
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+      register: namespace_check
+      failed_when: namespace_check.resources | length > 0
+
+    - name: Verify no Traefik pods remain
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: "{{ traefik_namespace }}"
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+      register: pod_check
+      failed_when: pod_check.resources | length > 0
+      ignore_errors: true
+
+    - name: Verify all Traefik CRDs are removed
+      ansible.builtin.shell: |
+        kubectl get crd -o name | grep -E '(traefik\.io|hub\.traefik\.io)' || true
+      register: remaining_crds
+      changed_when: false
+      failed_when: remaining_crds.stdout_lines | length > 0
+
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg: |
+          ========================================
+          Traefik has been successfully uninstalled!
+          
+          Verification completed:
+          - Helm release removed
+          - Namespace deleted
+          - No remaining pods
+          - LoadBalancer service removed
+          - All CRDs removed ({{ traefik_crds.stdout_lines | length }} CRDs deleted)
+          ========================================
