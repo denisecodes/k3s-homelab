@@ -231,13 +231,15 @@ After re-running the playbook, verify that ArgoCD successfully registered the `k
 
 #### CLI verification
 
-SSH into the master node and run:
+SSH into the master node. If you haven't already logged in to ArgoCD via the CLI, you'll need to authenticate first (see section 5.1 for login instructions).
+
+You can verify the repo using port-forwarding without a persistent login:
 
 ```bash
 argocd repo list --port-forward --port-forward-namespace argocd
 ```
 
-Or if you've logged in (see section 5.1):
+Or if you've already logged in:
 
 ```bash
 argocd repo list
