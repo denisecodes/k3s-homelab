@@ -73,7 +73,21 @@ ansible-playbook -i linux/inventory/hosts.ini argocd/playbooks/argocd-setup.yml 
 
 ## 4. Access the ArgoCD UI
 
-ArgoCD is exposed via **NodePort** on port `30080`. Open your browser and navigate to:
+### Option 1: Via hostname (recommended)
+
+If you've configured local DNS (see [DNS setup](dns.md)), you can access ArgoCD at:
+
+```
+http://argocd.home.lan
+```
+
+This requires:
+- dnsmasq configured to resolve `*.home.lan` to Traefik's LoadBalancer IP
+- Traefik IngressRoute deployed (see `apps/argocd/ingressroute.yaml` in k3s-apps repo)
+
+### Option 2: Via NodePort (fallback)
+
+ArgoCD is also exposed via **NodePort** on port `30080`. Open your browser and navigate to:
 
 ```
 http://<node-ip>:30080
@@ -84,6 +98,8 @@ For example, if your node IP is `192.168.1.100`:
 ```
 http://192.168.1.100:30080
 ```
+
+### Login credentials
 
 Log in with:
 
