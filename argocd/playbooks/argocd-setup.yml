@@ -218,3 +218,28 @@
             type: git
             url: "{{ argocd_repo_url }}"
             sshPrivateKey: "{{ argocd_repo_ssh_key }}"
+
+    # ── 7. Deploy argocd-apps Application ─────────────────────────────
+    - name: Deploy argocd-apps Application (watches k3s-apps repo)
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+        definition:
+          apiVersion: argoproj.io/v1alpha1
+          kind: Application
+          metadata:
+            name: argocd-apps
+            namespace: "{{ argocd_namespace }}"
+          spec:
+            project: default
+            source:
+              repoURL: "{{ argocd_repo_url }}"
+              targetRevision: main
+              path: apps
+            destination:
+              server: https://kubernetes.default.svc
+              namespace: "{{ argocd_namespace }}"
+            syncPolicy:
+              automated:
+                prune: true
+                selfHeal: true
