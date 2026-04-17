@@ -1,0 +1,196 @@
+---
+# Deploys a whoami test app with a Traefik IngressRoute to validate that:
+#   1. Traefik routes HTTP traffic correctly
+#   2. Local DNS (*.home.lan) resolves to the server
+#
+# Prerequisites:
+#   - Traefik installed (traefik/playbooks/traefik-setup.yml)
+#   - dnsmasq configured (linux/playbooks/dnsmasq-setup.yml)
+#   - Router DHCP pointing DNS to the server IP
+#
+# Run with:
+#   ansible-playbook -i linux/inventory/hosts-local.ini traefik/playbooks/traefik-test.yml \
+#     --ask-become-pass
+#
+# To clean up only (skip deploy and validation):
+#   ansible-playbook -i linux/inventory/hosts-local.ini traefik/playbooks/traefik-test.yml \
+#     --ask-become-pass --tags cleanup
+
+- name: Validate Traefik ingress with test deployment
+  hosts: master
+  become: true
+
+  vars:
+    test_namespace: "traefik-test"
+    test_hostname: "whoami.home.lan"
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+  tasks:
+
+    # -- 1. Deploy test app ------------------------------------------------------
+    - name: Create test namespace
+      kubernetes.core.k8s:
+        name: "{{ test_namespace }}"
+        api_version: v1
+        kind: Namespace
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+      tags: [deploy, cleanup]
+
+    - name: Deploy whoami app
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: whoami
+            namespace: "{{ test_namespace }}"
+            labels:
+              app: whoami
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: whoami
+            template:
+              metadata:
+                labels:
+                  app: whoami
+              spec:
+                containers:
+                  - name: whoami
+                    image: traefik/whoami:latest
+                    ports:
+                      - containerPort: 80
+      tags: [deploy]
+
+    - name: Create whoami Service
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: whoami
+            namespace: "{{ test_namespace }}"
+          spec:
+            selector:
+              app: whoami
+            ports:
+              - port: 80
+                targetPort: 80
+      tags: [deploy]
+
+    - name: Create Traefik IngressRoute for whoami
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: traefik.io/v1alpha1
+          kind: IngressRoute
+          metadata:
+            name: whoami
+            namespace: "{{ test_namespace }}"
+          spec:
+            entryPoints:
+              - web
+            routes:
+              - match: "Host(`{{ test_hostname }}`)"
+                kind: Rule
+                services:
+                  - name: whoami
+                    port: 80
+      tags: [deploy]
+
+    # -- 2. Wait for deployment to be ready --------------------------------------
+    - name: Wait for whoami deployment to be ready
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        namespace: "{{ test_namespace }}"
+        name: whoami
+        kubeconfig: "{{ kubeconfig }}"
+      register: whoami_deploy
+      until: whoami_deploy.resources[0].status.readyReplicas | default(0) >= 1
+      retries: 15
+      delay: 5
+      tags: [deploy]
+
+    # -- 3. Validate Traefik routing ---------------------------------------------
+    - name: Test Traefik routing via Host header (bypasses DNS)
+      ansible.builtin.uri:
+        url: "http://127.0.0.1"
+        headers:
+          Host: "{{ test_hostname }}"
+        return_content: true
+        status_code: 200
+      register: traefik_test
+      retries: 5
+      delay: 5
+      until: traefik_test.status == 200
+      tags: [deploy]
+
+    - name: Display Traefik routing result
+      ansible.builtin.debug:
+        msg: "Traefik routing is working. whoami responded at {{ test_hostname }}."
+      tags: [deploy]
+
+    # -- 4. Validate DNS resolution ----------------------------------------------
+    - name: Test DNS resolution for {{ test_hostname }}
+      ansible.builtin.command: dig +short {{ test_hostname }} @127.0.0.1
+      register: dns_result
+      changed_when: false
+      tags: [deploy]
+
+    - name: Display DNS resolution result
+      ansible.builtin.debug:
+        msg: >-
+          DNS test: {{ test_hostname }} resolves to {{ dns_result.stdout | trim }}.
+          {% if dns_result.stdout | trim == ansible_default_ipv4.address %}
+          Local DNS is working correctly.
+          {% else %}
+          WARNING: Expected {{ ansible_default_ipv4.address }}. Check dnsmasq configuration.
+          {% endif %}
+      tags: [deploy]
+
+    # -- 5. End-to-end test via hostname -----------------------------------------
+    - name: Test end-to-end via hostname (Traefik + DNS combined)
+      ansible.builtin.uri:
+        url: "http://{{ test_hostname }}"
+        return_content: true
+        status_code: 200
+      register: e2e_test
+      retries: 3
+      delay: 5
+      until: e2e_test.status == 200
+      failed_when: false
+      tags: [deploy]
+
+    - name: Display end-to-end test result
+      ansible.builtin.debug:
+        msg: >-
+          {% if e2e_test.status | default(0) == 200 %}
+          End-to-end test passed. {{ test_hostname }} is reachable via Traefik + DNS.
+          {% else %}
+          End-to-end test failed (status {{ e2e_test.status | default('N/A') }}).
+          Traefik routing works but DNS may not be resolving on this host.
+          Try from a LAN client: curl http://{{ test_hostname }}
+          {% endif %}
+      tags: [deploy]
+
+    # -- 6. Clean up -------------------------------------------------------------
+    - name: Delete test namespace (removes all test resources)
+      kubernetes.core.k8s:
+        name: "{{ test_namespace }}"
+        api_version: v1
+        kind: Namespace
+        state: absent
+        kubeconfig: "{{ kubeconfig }}"
+      tags: [cleanup]
+
+    - name: Display cleanup result
+      ansible.builtin.debug:
+        msg: "Test namespace '{{ test_namespace }}' deleted. All test resources cleaned up."
+      tags: [cleanup]

@@ -34,6 +34,8 @@ Add a GitHub Actions workflow (`.github/workflows/lint.yml`) that runs `ansible-
 
 Playbooks to lint:
 - `linux/playbooks/server-setup.yml`
+- `linux/playbooks/dnsmasq-setup.yml`
+- `traefik/playbooks/traefik-setup.yml`
 - `k3s/k3s-config.yml` (inventory/vars file — skip if not a playbook)
 - `argocd/playbooks/argocd-setup.yml`
 - `k3s-ansible/playbooks/site.yml` and `k3s-ansible/playbooks/upgrade.yml` (submodule — may need to pin lint rules)
@@ -129,6 +131,7 @@ k3s-homelab/
 ├── linux/              # Initial Ubuntu server setup (baseline.yml, inventory/)
 ├── k3s/                # K3s configuration (k3s-config.yml)
 ├── argocd/             # ArgoCD setup
+├── traefik/            # Traefik ingress controller setup
 ├── k3s-ansible/        # Submodule
 ├── .github/workflows/  # GitHub Actions workflows
 └── docs/               # Documentation
