@@ -83,6 +83,25 @@ Key variables in `traefik/playbooks/traefik-setup.yml`:
 | `traefik_namespace` | `traefik` | Kubernetes namespace |
 | `homelab_domain` | `home.lan` | Local domain for services |
 
+## Uninstalling Traefik
+
+To completely remove Traefik from the cluster:
+
+```bash
+ansible-playbook -i linux/inventory/hosts-local.ini traefik/playbooks/traefik-uninstall.yml \
+  --ask-become-pass
+```
+
+The playbook will:
+- Uninstall the Traefik Helm release
+- Remove the `traefik` namespace
+- Delete all Traefik Custom Resource Definitions (CRDs)
+- Verify complete removal of all resources
+
+The uninstall playbook handles cases where Traefik is already uninstalled gracefully, so it's safe to run multiple times.
+
+**Note:** This will remove all Traefik IngressRoutes, Middlewares, and other Traefik custom resources in your cluster. Make sure to back up any important configurations before uninstalling.
+
 ## Future plans
 
 - Migrate Traefik to an ArgoCD-managed application in the `k3s-apps` repo
