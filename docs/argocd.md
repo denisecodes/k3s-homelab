@@ -78,12 +78,12 @@ ansible-playbook -i linux/inventory/hosts.ini argocd/playbooks/argocd-setup.yml 
 If you've configured local DNS (see [DNS setup](dns.md)), you can access ArgoCD at:
 
 ```
-http://argocd.home.lan
+http://argocd.denise.home
 ```
 
 This requires:
-- dnsmasq configured to resolve `*.home.lan` to Traefik's LoadBalancer IP
-- Traefik IngressRoute deployed (see `apps/argocd/ingressroute.yaml` in k3s-apps repo)
+- dnsmasq configured to resolve `*.denise.home` to Traefik's LoadBalancer IP
+- Traefik IngressRoute deployed (see `apps/traefik/ingressroutes/argocd.yaml` in k3s-apps repo)
 
 ### Option 2: Via NodePort (fallback)
 
@@ -282,6 +282,8 @@ The UI method is useful if you're already working in the browser or if you encou
 
 With the playbook complete, ArgoCD is now watching the `k3s-apps` repository. The `argocd-apps` Application is automatically deployed and monitors the `apps/` directory for new application manifests.
 
+> **Note:** The `argocd-apps` Application uses `exclude: '**/ingressroutes/**'` to prevent conflicts with the dedicated `traefik-ingressroutes` Application. See [Directory Exclusions and Why They're Needed](#directory-exclusions-and-why-theyre-needed) for details on this pattern.
+
 To deploy a new application:
 
 1. **Create an `Application` manifest** in the `k3s-apps/apps/` directory:
@@ -307,3 +309,174 @@ To deploy a new application:
    ```
 
 2. **Commit and push** to the k3s-apps repository — ArgoCD will automatically detect and sync the new application.
+
+## Understanding the App-of-Apps Pattern
+
+The `argocd-apps` Application deployed by this playbook follows the **app-of-apps pattern** — a core ArgoCD design where one "root" Application manages other Applications.
+
+### How it works
+
+The `argocd-apps` Application is configured to:
+- Monitor the `apps/` directory in the k3s-apps repository
+- Use `recurse: true` to scan all subdirectories
+- Look for ArgoCD `Application` manifests (YAML files with `kind: Application`)
+- Automatically create and manage any Applications it finds
+
+This creates a hierarchy:
+
+```
+argocd-apps (root Application)
+├── manages → traefik Application
+│   └── deploys → Traefik Helm chart
+├── manages → longhorn Application
+│   └── deploys → Longhorn Helm chart
+├── manages → traefik-ingressroutes Application
+│   └── deploys → IngressRoute resources
+└── manages → sealed-secrets Application
+    └── deploys → Sealed Secrets Helm chart
+```
+
+### What argocd-apps does NOT manage
+
+The `argocd-apps` Application only manages **Application manifests**, not the actual resources they deploy. For example:
+- It creates the `traefik` Application ✓
+- It does NOT manage Traefik Pods, Services, or ConfigMaps ✗ (the `traefik` Application does that)
+
+This separation allows each Application to own its resources independently while being centrally discovered and deployed.
+
+## Managing IngressRoutes via Dedicated Application
+
+IngressRoutes for cluster services (ArgoCD, Longhorn, Traefik dashboard) are centralized in the k3s-apps repository under `apps/traefik/ingressroutes/`.
+
+### Why centralize IngressRoutes?
+
+Previously, each application had its own IngressRoute file scattered across different directories:
+- `apps/argocd/ingressroute.yaml`
+- `apps/longhorn/ingressroute.yaml`
+- Individual service folders
+
+This made it hard to:
+- See all cluster routes at a glance
+- Maintain consistent DNS patterns (e.g., `*.denise.home`)
+- Apply global routing policies
+
+### The new structure
+
+IngressRoutes are now managed by a dedicated `traefik-ingressroutes` Application:
+
+```
+apps/traefik/
+├── application.yaml                    # Traefik Helm chart Application
+├── ingressroutes-application.yaml      # IngressRoutes Application
+└── ingressroutes/                      # Centralized IngressRoute definitions
+    ├── argocd.yaml                     # http://argocd.denise.home
+    ├── longhorn.yaml                   # http://longhorn.denise.home
+    ├── traefik.yaml                    # http://traefik.denise.home
+    └── README.md                       # Documentation
+```
+
+The `traefik-ingressroutes` Application:
+- Is discovered and created by `argocd-apps`
+- Watches `apps/traefik/ingressroutes/` for changes
+- Automatically syncs IngressRoute resources to the cluster
+- Has auto-sync and self-heal enabled
+
+For details on the IngressRoute files themselves, see the [k3s-apps repository](https://github.com/denisecodes/k3s-apps).
+
+## Directory Exclusions and Why They're Needed
+
+The `argocd-apps` Application includes a critical exclusion pattern:
+
+```yaml
+directory:
+  recurse: true
+  exclude: '**/ingressroutes/**'
+```
+
+### The problem without exclusions
+
+Without this exclusion, **two Applications would manage the same resources**:
+
+1. **argocd-apps** scans `apps/` recursively and finds `apps/traefik/ingressroutes/*.yaml` files
+2. **traefik-ingressroutes** also manages `apps/traefik/ingressroutes/*.yaml` files
+
+This causes ArgoCD to show `SharedResourceWarning` errors like:
+
+```
+IngressRoute/argocd-server is part of applications argocd/argocd-apps and traefik-ingressroutes
+```
+
+Both Applications continuously try to reconcile the same IngressRoutes, causing sync loops where the Application status flips between "Synced" and "Syncing".
+
+### How the exclusion solves this
+
+With `exclude: '**/ingressroutes/**'`, the `argocd-apps` Application:
+- ✓ Still finds and creates `apps/traefik/ingressroutes-application.yaml` (the Application manifest)
+- ✗ Skips the `apps/traefik/ingressroutes/` directory contents (the IngressRoute YAMLs)
+
+This gives each Application clear ownership:
+
+```
+apps/traefik/
+├── application.yaml                    ← argocd-apps manages ✓
+├── ingressroutes-application.yaml      ← argocd-apps manages ✓
+└── ingressroutes/                      ← argocd-apps IGNORES
+    ├── argocd.yaml                     ← traefik-ingressroutes manages ✓
+    ├── longhorn.yaml                   ← traefik-ingressroutes manages ✓
+    └── traefik.yaml                    ← traefik-ingressroutes manages ✓
+```
+
+### When to add new exclusions
+
+Add a similar exclusion pattern if you create other centralized resource directories, such as:
+- `**/configmaps/**` — centralized ConfigMaps
+- `**/secrets/**` — centralized Secret manifests
+- `**/middleware/**` — centralized Traefik middlewares
+
+The rule: **If a dedicated Application manages a directory's contents, exclude that directory from argocd-apps.**
+
+## Troubleshooting Resource Conflicts
+
+### Detecting SharedResourceWarning errors
+
+Check for resource conflicts across all Applications:
+
+```bash
+kubectl get application -n argocd -o json | \
+  jq '.items[] | select(.status.conditions != null) | {name: .metadata.name, conditions: .status.conditions}'
+```
+
+### Finding which Application manages a resource
+
+Check the ArgoCD instance label on any resource:
+
+```bash
+# For an IngressRoute
+kubectl get ingressroute argocd-server -n argocd \
+  -o jsonpath='{.metadata.labels.argocd\.argoproj\.io/instance}'
+
+# For any resource type
+kubectl get <resource-type> <resource-name> -n <namespace> \
+  -o jsonpath='{.metadata.labels.argocd\.argoproj\.io/instance}'
+```
+
+### Monitoring Application sync status
+
+Watch all Applications for sync loops:
+
+```bash
+kubectl get application -n argocd -w
+```
+
+If an Application keeps switching between "Synced" and "Syncing", it's likely a resource conflict.
+
+### Resolving conflicts
+
+If you see `SharedResourceWarning` errors:
+
+1. **Identify the conflicting resource** from the error message
+2. **Determine which Application should own it** (usually the more specific one)
+3. **Add an exclusion pattern** to the broader Application (usually `argocd-apps`)
+4. **Update the playbook** (`argocd/playbooks/argocd-setup.yml`) to make the exclusion permanent
+
+For example, the `exclude: '**/ingressroutes/**'` pattern in the playbook ensures future ArgoCD installations won't have this conflict.

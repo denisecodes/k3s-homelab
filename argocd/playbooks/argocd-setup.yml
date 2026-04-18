@@ -238,6 +238,12 @@
               path: apps
               directory:
                 recurse: true
+                # Exclude ingressroutes directories to prevent resource conflicts.
+                # The argocd-apps Application manages the traefik-ingressroutes Application manifest,
+                # but the traefik-ingressroutes Application itself manages the actual IngressRoute resources.
+                # Without this exclusion, both Applications would try to manage the same resources,
+                # causing SharedResourceWarning errors and continuous sync loops.
+                # See docs/argocd.md for more details on the app-of-apps pattern.
                 exclude: '**/ingressroutes/**'
             destination:
               server: https://kubernetes.default.svc
