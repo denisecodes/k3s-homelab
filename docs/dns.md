@@ -6,7 +6,7 @@ This document covers how to set up local DNS so homelab services are reachable b
 
 [dnsmasq](https://thekelleys.org.uk/dnsmasq/doc.html) runs on the homelab server and provides wildcard DNS resolution:
 
-- Any `*.home.lan` query resolves to the **Traefik LoadBalancer IP** (192.168.50.113)
+- Any `*.home.lan` query resolves to the **Traefik LoadBalancer IP** (`<TRAEFIK_LOADBALANCER_IP>`)
 - Traefik routes traffic to the appropriate service based on the hostname
 - All other DNS queries are forwarded to upstream resolvers (Cloudflare `1.1.1.1` and Google `8.8.8.8`)
 - The router's DHCP hands out the server's IP as the DNS server for all LAN clients
@@ -75,7 +75,7 @@ From any device on your LAN:
 nslookup whoami.home.lan
 ```
 
-This should return the Traefik LoadBalancer IP (192.168.50.113). If it doesn't, check that:
+This should return the Traefik LoadBalancer IP (`<TRAEFIK_LOADBALANCER_IP>`). If it doesn't, check that:
 - dnsmasq is running on the server: `sudo systemctl status dnsmasq`
 - The router DHCP is handing out the correct DNS: check your device's DNS settings
 - UFW is allowing port 53: `sudo ufw status`
@@ -98,7 +98,7 @@ Key variables in `linux/playbooks/dnsmasq-setup.yml`:
 | Variable | Default | Description |
 |---|---|---|
 | `homelab_domain` | `home.lan` | Wildcard domain for local services |
-| `traefik_ip` | `192.168.50.113` | Traefik LoadBalancer IP (all `*.home.lan` traffic routes here) |
+| `traefik_ip` | `<TRAEFIK_LOADBALANCER_IP>` | Traefik LoadBalancer IP (all `*.home.lan` traffic routes here) |
 | `upstream_dns_1` | `1.1.1.1` | Primary upstream DNS (Cloudflare) |
 | `upstream_dns_2` | `8.8.8.8` | Secondary upstream DNS (Google) |
 

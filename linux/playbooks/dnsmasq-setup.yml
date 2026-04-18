@@ -4,8 +4,9 @@
 # the server's IP as DNS Server 1 so all LAN clients resolve *.home.lan automatically.
 #
 # Before running:
-#   cp linux/inventory/hosts.ini linux/inventory/hosts-local.ini
-#   # edit hosts-local.ini with your real IPs, username, and timezone
+#   1. cp linux/inventory/hosts.ini linux/inventory/hosts-local.ini
+#   2. Edit hosts-local.ini with your real IPs, username, and timezone
+#   3. Set traefik_loadbalancer_ip in hosts-local.ini under [homelab:vars]
 #
 # Run with:
 #   ansible-playbook -i linux/inventory/hosts-local.ini linux/playbooks/dnsmasq-setup.yml \
@@ -17,15 +18,31 @@
 
   vars:
     homelab_domain: "home.lan"
-    # Traefik LoadBalancer IP — all *.home.lan traffic routes through Traefik
-    traefik_ip: "192.168.50.113"
     # Upstream DNS servers — used for all queries except *.home.lan
     upstream_dns_1: "1.1.1.1"
     upstream_dns_2: "8.8.8.8"
 
   tasks:
 
-    # -- 1. Install dnsmasq -----------------------------------------------------
+    # -- 1. Verify required variables are set -----------------------------------
+    - name: Check that traefik_loadbalancer_ip is defined
+      ansible.builtin.assert:
+        that:
+          - traefik_loadbalancer_ip is defined
+          - traefik_loadbalancer_ip != ""
+        fail_msg: |
+          ERROR: traefik_loadbalancer_ip is not set!
+          
+          Please set it in your inventory file (linux/inventory/hosts-local.ini):
+          
+          [homelab:vars]
+          traefik_loadbalancer_ip=<YOUR_TRAEFIK_IP>
+          
+          This should be the external IP of your Traefik LoadBalancer service.
+          Find it with: kubectl get svc -n traefik
+        success_msg: "traefik_loadbalancer_ip is set to {{ traefik_loadbalancer_ip }}"
+
+    # -- 2. Install dnsmasq -----------------------------------------------------
     - name: Install dnsmasq
       ansible.builtin.apt:
         name: dnsmasq
@@ -66,7 +83,7 @@
         content: |
           # Managed by Ansible — dnsmasq-setup.yml
           # Wildcard DNS: all *.{{ homelab_domain }} queries resolve to Traefik LoadBalancer
-          address=/{{ homelab_domain }}/{{ traefik_ip }}
+          address=/{{ homelab_domain }}/{{ traefik_loadbalancer_ip }}
 
           # Upstream DNS servers for everything else
           server={{ upstream_dns_1 }}
@@ -121,10 +138,10 @@
       ansible.builtin.debug:
         msg: >-
           DNS test: test.{{ homelab_domain }} resolves to {{ dns_test.stdout | trim }}.
-          {% if dns_test.stdout | trim == traefik_ip %}
+          {% if dns_test.stdout | trim == traefik_loadbalancer_ip %}
           Wildcard DNS is working correctly - resolving to Traefik LoadBalancer.
           {% else %}
-          WARNING: Expected {{ traefik_ip }} but got {{ dns_test.stdout | trim }}. Check dnsmasq configuration.
+          WARNING: Expected {{ traefik_loadbalancer_ip }} but got {{ dns_test.stdout | trim }}. Check dnsmasq configuration.
           {% endif %}
 
     - name: Display next steps

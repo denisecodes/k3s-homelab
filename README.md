@@ -274,7 +274,7 @@ New services automatically get DNS resolution when you create a Traefik IngressR
 
 Services are also accessible via NodePort using `http://<node-ip>:<port>`:
 
-- **ArgoCD**: http://192.168.50.113:30080
+- **ArgoCD**: http://<YOUR_NODE_IP>:30080
 - **Longhorn**: Check the service port with `kubectl get svc -n longhorn-system`
 
 ## Upgrading K3s
