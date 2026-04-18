@@ -6,7 +6,7 @@ This document covers how to set up local DNS so homelab services are reachable b
 
 [dnsmasq](https://thekelleys.org.uk/dnsmasq/doc.html) runs on the homelab server and provides wildcard DNS resolution:
 
-- Any `*.home.lan` query resolves to the **Traefik LoadBalancer IP** (`<TRAEFIK_LOADBALANCER_IP>`)
+- Any `*.denise.home` query resolves to the **Traefik LoadBalancer IP** (`<TRAEFIK_LOADBALANCER_IP>`)
 - Traefik routes traffic to the appropriate service based on the hostname
 - All other DNS queries are forwarded to upstream resolvers (Cloudflare `1.1.1.1` and Google `8.8.8.8`)
 - The router's DHCP hands out the server's IP as the DNS server for all LAN clients
@@ -28,7 +28,7 @@ ansible-playbook -i linux/inventory/hosts-local.ini linux/playbooks/dnsmasq-setu
 The playbook will:
 - Install dnsmasq
 - Disable systemd-resolved (frees port 53)
-- Configure wildcard DNS for `*.home.lan`
+- Configure wildcard DNS for `*.denise.home`
 - Set upstream DNS forwarders (Cloudflare + Google)
 - Open UFW ports 53/tcp and 53/udp
 - Verify DNS resolution is working
@@ -72,7 +72,7 @@ After updating the router, devices need to renew their DHCP lease to pick up the
 From any device on your LAN:
 
 ```bash
-nslookup whoami.home.lan
+nslookup whoami.denise.home
 ```
 
 This should return the Traefik LoadBalancer IP (`<TRAEFIK_LOADBALANCER_IP>`). If it doesn't, check that:
@@ -84,12 +84,11 @@ This should return the Traefik LoadBalancer IP (`<TRAEFIK_LOADBALANCER_IP>`). If
 
 Services with Traefik IngressRoutes can be accessed via their configured hostnames:
 
-- **ArgoCD**: http://argocd.home.lan
-- **Longhorn**: http://longhorn.home.lan
+- **ArgoCD**: http://argocd.denise.home
+- **Longhorn**: http://longhorn.denise.home
+- **Traefik Dashboard**: http://traefik.denise.home
 
-To add a new service, create a Traefik IngressRoute in the k3s-apps repository. See examples in:
-- `apps/argocd/ingressroute.yaml`
-- `apps/longhorn/ingressroute.yaml`
+To add a new service, create a Traefik IngressRoute in the k3s-apps repository. See examples in `apps/traefik/ingressroutes/` or the [IngressRoutes README](https://github.com/denisecodes/k3s-apps/blob/main/apps/traefik/ingressroutes/README.md).
 
 ## Configuration
 
@@ -97,8 +96,8 @@ Key variables in `linux/playbooks/dnsmasq-setup.yml`:
 
 | Variable | Default | Description |
 |---|---|---|
-| `homelab_domain` | `home.lan` | Wildcard domain for local services |
-| `traefik_ip` | `<TRAEFIK_LOADBALANCER_IP>` | Traefik LoadBalancer IP (all `*.home.lan` traffic routes here) |
+| `homelab_domain` | `denise.home` | Wildcard domain for local services |
+| `traefik_ip` | `<TRAEFIK_LOADBALANCER_IP>` | Traefik LoadBalancer IP (all `*.denise.home` traffic routes here) |
 | `upstream_dns_1` | `1.1.1.1` | Primary upstream DNS (Cloudflare) |
 | `upstream_dns_2` | `8.8.8.8` | Secondary upstream DNS (Google) |
 

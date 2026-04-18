@@ -58,10 +58,10 @@ ansible-playbook -i linux/inventory/hosts-local.ini traefik/playbooks/traefik-te
   --ask-become-pass
 ```
 
-This deploys a `whoami` test app with a Traefik IngressRoute at `whoami.home.lan`, validates that:
+This deploys a `whoami` test app with a Traefik IngressRoute at `whoami.denise.home`, validates that:
 
 1. Traefik routes HTTP traffic to the app
-2. DNS resolves `whoami.home.lan` to the server IP
+2. DNS resolves `whoami.denise.home` to the server IP
 3. End-to-end request via hostname works
 
 The playbook automatically cleans up the test resources when done.
@@ -81,7 +81,7 @@ Key variables in `traefik/playbooks/traefik-setup.yml`:
 |---|---|---|
 | `traefik_chart_version` | `36.4.0` | Traefik Helm chart version |
 | `traefik_namespace` | `traefik` | Kubernetes namespace |
-| `homelab_domain` | `home.lan` | Local domain for services |
+| `homelab_domain` | `denise.home` | Local domain for services |
 
 ## Uninstalling Traefik
 

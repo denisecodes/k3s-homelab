@@ -1,7 +1,7 @@
 ---
 # Deploys a whoami test app with a Traefik IngressRoute to validate that:
 #   1. Traefik routes HTTP traffic correctly
-#   2. Local DNS (*.home.lan) resolves to the server
+#   2. Local DNS (*.denise.home) resolves to the server
 #
 # Prerequisites:
 #   - Traefik installed (traefik/playbooks/traefik-setup.yml)
@@ -22,7 +22,7 @@
 
   vars:
     test_namespace: "traefik-test"
-    test_hostname: "whoami.home.lan"
+    test_hostname: "whoami.denise.home"
     kubeconfig: /etc/rancher/k3s/k3s.yaml
 
   tasks:
