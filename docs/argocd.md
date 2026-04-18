@@ -426,14 +426,63 @@ apps/traefik/
     └── traefik.yaml                    ← traefik-ingressroutes manages ✓
 ```
 
+### Multiple exclusion patterns
+
+ArgoCD's directory source supports excluding multiple patterns using **brace-grouped glob syntax**:
+
+```yaml
+exclude: "{**/ingressroutes/**,**/tests/**}"
+```
+
+This is equivalent to:
+- Exclude any file/directory matching `**/ingressroutes/**`
+- AND exclude any file/directory matching `**/tests/**`
+
+**Important:** Multiple patterns must use brace-grouped syntax. The following formats do NOT work:
+- ❌ YAML list: `['**/ingressroutes/**', '**/tests/**']`
+- ❌ Newline-separated: `**/ingressroutes/**\n**/tests/**`
+- ✅ Brace-grouped: `"{**/ingressroutes/**,**/tests/**}"`
+
+### Tests directory exclusion
+
+The `**/tests/**` exclusion prevents test resources from being automatically deployed:
+
+```
+apps/longhorn/
+├── application.yaml              ← argocd-apps manages ✓
+├── values.yaml                   ← Used by longhorn Application
+└── tests/                        ← argocd-apps IGNORES
+    ├── job.yaml                  ← Deploy manually when needed
+    ├── pvc.yaml                  ← Deploy manually when needed
+    └── README.md                 ← Instructions
+```
+
+**Why exclude tests:**
+- Test resources (Jobs, PVCs) are for **on-demand verification**, not continuous deployment
+- Used during: initial setup, major upgrades, troubleshooting storage issues
+- Automatically deploying tests wastes cluster resources
+- Tests can be run manually: `kubectl apply -f apps/longhorn/tests/`
+
+**Without this exclusion:** argocd-apps would continuously deploy test resources, creating unwanted Jobs and PVCs that consume storage and compute resources.
+
 ### When to add new exclusions
 
-Add a similar exclusion pattern if you create other centralized resource directories, such as:
-- `**/configmaps/**` — centralized ConfigMaps
-- `**/secrets/**` — centralized Secret manifests
-- `**/middleware/**` — centralized Traefik middlewares
+Add exclusion patterns for directories that should NOT be automatically deployed by argocd-apps:
 
-The rule: **If a dedicated Application manages a directory's contents, exclude that directory from argocd-apps.**
+**Managed by dedicated Applications:**
+- `**/ingressroutes/**` — managed by traefik-ingressroutes Application
+- `**/configmaps/**` — if using centralized ConfigMaps Application
+- `**/secrets/**` — if using centralized Secrets Application
+- `**/middleware/**` — if using centralized Traefik middleware Application
+
+**Manual deployment only:**
+- `**/tests/**` — test resources for on-demand verification
+- `**/examples/**` — example manifests for documentation
+- `**/templates/**` — template files requiring customization
+
+**The rule:** If resources should NOT be automatically deployed by argocd-apps, add an exclusion pattern.
+
+**Syntax reminder:** Use brace-grouped format for multiple patterns: `"{**/pattern1/**,**/pattern2/**}"`
 
 ## Troubleshooting Resource Conflicts
 
