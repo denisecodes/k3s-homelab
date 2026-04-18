@@ -238,6 +238,7 @@
               path: apps
               directory:
                 recurse: true
+                exclude: '**/ingressroutes/**'
             destination:
               server: https://kubernetes.default.svc
               namespace: "{{ argocd_namespace }}"
