@@ -17,8 +17,8 @@
   become: true
 
   vars:
-    homelab_domain: "home.lan"
-    # Upstream DNS servers — used for all queries except *.home.lan
+    homelab_domain: "denise.home"
+    # Upstream DNS servers — used for all queries except *.denise.home
     upstream_dns_1: "1.1.1.1"
     upstream_dns_2: "8.8.8.8"
 

@@ -16,7 +16,7 @@
   vars:
     traefik_chart_version: "39.0.8"   # https://artifacthub.io/packages/helm/traefik/traefik (appVersion: v3.6.13)
     traefik_namespace: "traefik"
-    homelab_domain: "home.lan"         # wildcard domain for local services
+    homelab_domain: "denise.home"      # wildcard domain for local services
 
   tasks:
 
