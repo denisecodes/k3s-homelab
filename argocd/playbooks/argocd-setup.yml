@@ -238,6 +238,12 @@
               path: apps
               directory:
                 recurse: true
+                # Include only Application manifests to prevent argocd-apps from managing workload resources.
+                # This ensures the app-of-apps pattern only creates child Applications, while each child
+                # Application manages its own workloads (DaemonSets, Deployments, Jobs, etc.).
+                # Without this, both argocd-apps and child Applications would try to manage the same
+                # resources, causing SharedResourceWarning errors.
+                include: '**/application.yaml'
                 # Exclude specific directories to prevent resource conflicts with dedicated Applications.
                 #
                 # **/ingressroutes/**: The argocd-apps Application manages the traefik-ingressroutes
