@@ -46,6 +46,11 @@ After group membership changes, log out and back in on the target host.
 
 ## Ripping CDs (headless)
 
+> **SSH in first.** All commands below run on the server, not your local machine.
+> ```bash
+> ssh user@<SERVER_IP>
+> ```
+
 Insert the CD into the drive first, then run:
 
 ```bash
@@ -89,6 +94,11 @@ find ~/Music/ -type f -name "*.flac"
 ```
 
 ## Ripping DVDs (headless)
+
+> **SSH in first.** All commands below run on the server, not your local machine.
+> ```bash
+> ssh user@<SERVER_IP>
+> ```
 
 DVD support requires first enabling the optional commented tasks in the playbook (`libdvd-pkg` and `dpkg-reconfigure libdvd-pkg`), then installing a ripping tool.
 
