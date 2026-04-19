@@ -75,22 +75,27 @@ FLAC is the best format for archiving CDs because:
 
 ### Finding your CD rips
 
-Files land in `~/Music/` by default, organised as:
+Files land in your **home directory** by default, in a folder named `<Artist>-<Album>`:
 
 ```
-~/Music/<Artist>/<Album>/<track_number>_<track_title>.flac
+~/<Artist>-<Album>/<track_number>_<track_title>.flac
+```
+
+For example:
+```
+~/The_RRSO_Symphony_Orchestra-The_Orchestral_Frank_Sinatra/
 ```
 
 List what's been ripped:
 
 ```bash
-ls ~/Music/
+ls ~
 ```
 
 Or find all FLAC files recursively:
 
 ```bash
-find ~/Music/ -type f -name "*.flac"
+find ~/ -type f -name "*.flac"
 ```
 
 ## Ripping DVDs (headless)
