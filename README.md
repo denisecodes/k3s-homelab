@@ -284,6 +284,7 @@ For full details on the upgrade process, including the automated GitHub Actions 
 ## Future improvements
 
 - **Project structure:** Configuration files are now organised into subdirectories — `linux/` for the initial server setup, `k3s/` for K3s configuration, and `argocd/` for ArgoCD. See [docs/future-improvements.md](docs/future-improvements.md) for planned further improvements.
+- **Multimedia setup:** Optional CD/DVD tooling setup is documented in [docs/multimedia.md](docs/multimedia.md).
 
 ## Acknowledgements
 

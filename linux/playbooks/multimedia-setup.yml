@@ -1,0 +1,76 @@
+---
+# Installs multimedia tooling focused on CD ripping on Ubuntu nodes.
+# Includes Sound Juicer (GUI) plus CLI tools/codecs for flexible ripping.
+#
+# Before running:
+#   cp linux/inventory/hosts.ini linux/inventory/hosts-local.ini
+#   # edit hosts-local.ini with your real IPs, username, and timezone
+#
+# Run with:
+#   ansible-playbook -i linux/inventory/hosts-local.ini linux/playbooks/multimedia-setup.yml \
+#     --ask-become-pass
+
+- name: Multimedia and CD ripping setup
+  hosts: homelab
+  become: true
+
+  vars:
+    multimedia_packages:
+      - abcde
+      - cdparanoia
+      - cdrdao
+      - eject
+      - ffmpeg
+      - flac
+      - id3v2
+      - lame
+      - vorbis-tools
+      - udisks2
+
+  tasks:
+    - name: Install multimedia packages
+      ansible.builtin.apt:
+        name: "{{ multimedia_packages }}"
+        state: present
+        update_cache: true
+      register: apt_result
+      until: apt_result is succeeded
+      retries: 3
+      delay: 10
+
+    # Optional DVD playback/decryption support (disabled by default):
+    # - name: Install libdvd-pkg
+    #   ansible.builtin.apt:
+    #     name: libdvd-pkg
+    #     state: present
+    #     update_cache: true
+    #
+    # - name: Build and install libdvdcss via libdvd-pkg
+    #   ansible.builtin.command: dpkg-reconfigure libdvd-pkg
+    #   changed_when: true
+
+    - name: Ensure udisks2 is enabled and running
+      ansible.builtin.service:
+        name: udisks2
+        enabled: true
+        state: started
+
+    - name: Add Ansible user to cdrom group
+      ansible.builtin.user:
+        name: "{{ ansible_user }}"
+        groups: cdrom
+        append: true
+      when: ansible_user is defined
+
+    - name: Add Ansible user to audio group
+      ansible.builtin.user:
+        name: "{{ ansible_user }}"
+        groups: audio
+        append: true
+      when: ansible_user is defined
+
+    - name: Show post-install notes
+      ansible.builtin.debug:
+        msg:
+          - "Multimedia packages installed. Rip CDs with: abcde -o flac -x"
+          - "If group changes were applied, log out and back in before ripping."
