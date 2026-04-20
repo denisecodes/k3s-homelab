@@ -1,6 +1,6 @@
 ---
 # Installs multimedia tooling focused on CD ripping on Ubuntu nodes.
-# Includes Sound Juicer (GUI) plus CLI tools/codecs for flexible ripping.
+# Includes CLI tools/codecs for CD and DVD ripping/transcoding.
 #
 # Before running:
 #   cp linux/inventory/hosts.ini linux/inventory/hosts-local.ini
@@ -19,15 +19,29 @@
       - abcde
       - cdparanoia
       - cdrdao
+      - dvdbackup
       - eject
       - ffmpeg
       - flac
+      - handbrake-cli
       - id3v2
       - lame
       - vorbis-tools
       - udisks2
 
   tasks:
+    - name: Enable Universe repository
+      ansible.builtin.apt_repository:
+        repo: "deb http://archive.ubuntu.com/ubuntu {{ ansible_facts['distribution_release'] }} universe"
+        state: present
+      when: ansible_facts['distribution'] == "Ubuntu"
+
+    - name: Install MakeMKV via snap
+      community.general.snap:
+        name: makemkv
+        state: present
+      when: ansible_facts['distribution'] == "Ubuntu"
+
     - name: Install multimedia packages
       ansible.builtin.apt:
         name: "{{ multimedia_packages }}"
@@ -85,4 +99,6 @@
       ansible.builtin.debug:
         msg:
           - "Multimedia packages installed. Rip CDs with: abcde -o flac -x"
+          - "Rip DVDs with: dvdbackup -M -i /dev/sr0 -o ~/dvd-rips/"
+          - "Transcode DVDs with: HandBrakeCLI -i ~/dvd-rips/<DISC_TITLE>/VIDEO_TS -o ~/dvd-rips/'Movie Name (Year).mkv' --encoder x265 --preset='Fast 1080p30'"
           - "If group changes were applied, log out and back in before ripping."

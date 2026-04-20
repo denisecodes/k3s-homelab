@@ -105,13 +105,28 @@ find ~/ -type f -name "*.flac"
 > ssh user@<SERVER_IP>
 > ```
 
-DVD support requires first enabling the optional commented tasks in the playbook (`libdvd-pkg` and `dpkg-reconfigure libdvd-pkg`), then installing a ripping tool.
-
-Install `dvdbackup` for a straight disc-to-folder copy:
+Run the multimedia playbook first. It installs `dvdbackup`, `HandBrakeCLI`, and `MakeMKV`:
 
 ```bash
-sudo apt install dvdbackup
+ansible-playbook -i linux/inventory/hosts-local.ini linux/playbooks/multimedia-setup.yml --ask-become-pass
 ```
+
+DVD decryption support is included — the playbook installs `libdvd-pkg` and runs `dpkg-reconfigure libdvd-pkg` to build `libdvdcss2`.
+
+### Choosing a ripping tool
+
+Two tools are available for extracting the disc content, and it's worth knowing the difference:
+
+| | `dvdbackup` | `MakeMKV` |
+|---|---|---|
+| Decryption | `libdvdcss` (CSS only) | Own engine (handles more schemes) |
+| Output | Raw `VIDEO_TS/` folder | `.mkv` files per title |
+| Fails on | Newer/non-standard protection | Rarely |
+| Best for | Simple discs, full disc backup | Most discs, especially stubborn ones |
+
+**Use `dvdbackup` first** — it's fast and straightforward. If you see `Error cracking CSS key` errors or HandBrake reports 0 valid titles after the rip, switch to MakeMKV.
+
+**Use `MakeMKV`** when `dvdbackup` fails — it handles a wider range of copy protection schemes and outputs ready-to-use `.mkv` files directly.
 
 Insert the DVD and identify the drive (usually `/dev/sr0`):
 
@@ -119,25 +134,36 @@ Insert the DVD and identify the drive (usually `/dev/sr0`):
 ls /dev/sr*
 ```
 
-Copy the full DVD structure to a folder:
+**Option A — `dvdbackup`** (try this first):
 
 ```bash
+mkdir -p ~/dvd-rips
 dvdbackup -M -i /dev/sr0 -o ~/dvd-rips/
 ```
 
 `-M` mirrors the full disc (VIDEO_TS and all extras). The output folder will be named after the disc title.
 
-To transcode to a file instead of a raw copy, install HandBrakeCLI:
+If you see `Error cracking CSS key` in the output, or HandBrake reports 0 valid titles, use MakeMKV instead.
+
+**Option B — `MakeMKV`** (when dvdbackup fails):
 
 ```bash
-sudo apt install handbrake-cli
+makemkvcon mkv disc:0 all ~/dvd-rips/
 ```
 
-Encode the main title to MP4:
+MakeMKV outputs `.mkv` files directly — no transcoding needed. Skip to the [Finding your DVD rips](#finding-your-dvd-rips) section.
+
+### Transcode to MKV (dvdbackup only)
+
+If you used `dvdbackup`, run HandBrakeCLI to convert the raw `VIDEO_TS/` folder to a single `.mkv`:
 
 ```bash
-HandBrakeCLI -i /dev/sr0 -o ~/dvd-rips/output.mp4 --preset="Fast 1080p30"
+HandBrakeCLI -i ~/dvd-rips/<DISC_TITLE>/VIDEO_TS \
+  -o ~/dvd-rips/"Movie Name (Year).mkv" \
+  --encoder x265 --preset="Fast 1080p30"
 ```
+
+Name the output `Movie Name (Year).mkv` — Jellyfin uses that format for metadata matching.
 
 ### Output format options
 
@@ -181,16 +207,11 @@ ls ~/dvd-rips/
 du -sh ~/dvd-rips/*
 ```
 
-## Optional DVD support (currently commented out)
+## DVD decryption support
 
-The playbook includes commented tasks for:
-
-- `libdvd-pkg` installation
-- `dpkg-reconfigure libdvd-pkg`
-
-These are kept disabled by default and can be uncommented if needed.
+The playbook installs `libdvd-pkg` and runs `dpkg-reconfigure libdvd-pkg` to build `libdvdcss2` automatically.
 
 Notes:
 
 - DVD decryption support may depend on repository/component availability on your distro.
-- In some environments, `dpkg-reconfigure libdvd-pkg` may build/download `libdvdcss2` and can take additional time.
+- `dpkg-reconfigure libdvd-pkg` downloads and builds `libdvdcss2` at install time — this step can take a few extra minutes.
