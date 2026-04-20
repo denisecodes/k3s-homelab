@@ -25,6 +25,7 @@
       - id3v2
       - lame
       - vorbis-tools
+      - dvdbackup
       - udisks2
 
   tasks:
