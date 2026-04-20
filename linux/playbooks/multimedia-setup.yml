@@ -38,23 +38,35 @@
       retries: 3
       delay: 10
 
-    # Optional DVD playback/decryption support (disabled by default):
-    # - name: Install libdvd-pkg
-    #   ansible.builtin.apt:
-    #     name: libdvd-pkg
-    #     state: present
-    #     update_cache: true
-    #
-    # - name: Build and install libdvdcss via libdvd-pkg
-    #   ansible.builtin.command: dpkg-reconfigure libdvd-pkg
-    #   changed_when: true
-
     - name: Ensure udisks2 is enabled and running
       ansible.builtin.service:
         name: udisks2
         enabled: true
         state: started
 
+    # DVD playback/decryption support:
+    - name: Pre-seed libdvd-pkg debconf to auto-confirm build
+      ansible.builtin.debconf:
+        name: libdvd-pkg
+        question: libdvd-pkg/build
+        value: "true"
+        vtype: boolean
+
+    - name: Install libdvd-pkg
+      ansible.builtin.apt:
+        name: libdvd-pkg
+        state: present
+        update_cache: true
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+
+    - name: Build and install libdvdcss via libdvd-pkg
+      ansible.builtin.command: dpkg-reconfigure libdvd-pkg
+      changed_when: true
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+
+    # CD playback/decryption support:        
     - name: Add Ansible user to cdrom group
       ansible.builtin.user:
         name: "{{ ansible_user }}"
