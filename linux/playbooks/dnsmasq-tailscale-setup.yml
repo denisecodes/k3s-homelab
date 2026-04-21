@@ -1,0 +1,226 @@
+---
+# Updates dnsmasq to support remote access via Tailscale DNS (split-horizon).
+# This playbook configures dnsmasq to listen on the Tailscale interface and return
+# the Tailscale IP for all *.denise.home queries, enabling unified URLs whether
+# at home or accessing remotely via Tailscale.
+#
+# Prerequisites:
+#   - Tailscale installed and authenticated on homelab nodes
+#   - dnsmasq already configured for local DNS (via dnsmasq-setup.yml)
+#   - Traefik accessible on Tailscale IP (verify with: curl http://<TAILSCALE_IP>/)
+#
+# Before running:
+#   1. Ensure linux/inventory/hosts-local.ini has traefik_loadbalancer_ip set
+#   2. Verify Tailscale is running: ssh <node> "tailscale status"
+#
+# Run with:
+#   ansible-playbook -i linux/inventory/hosts-local.ini \
+#     linux/playbooks/dnsmasq-tailscale-setup.yml --ask-become-pass
+#
+# After running:
+#   - Configure Tailscale MagicDNS (see docs/tailscale.md)
+#   - Test DNS resolution: dig argocd.denise.home @<TAILSCALE_IP>
+#
+# Rollback:
+#   ansible-playbook -i linux/inventory/hosts-local.ini \
+#     linux/playbooks/dnsmasq-setup.yml --ask-become-pass
+
+- name: Configure dnsmasq for Tailscale remote access
+  hosts: master
+  become: true
+
+  vars:
+    homelab_domain: "denise.home"
+    # Upstream DNS servers — used for all queries except *.denise.home
+    upstream_dns_1: "1.1.1.1"
+    upstream_dns_2: "8.8.8.8"
+
+  tasks:
+
+    # -- 1. Verify prerequisites ------------------------------------------------
+    - name: Check that traefik_loadbalancer_ip is defined
+      ansible.builtin.assert:
+        that:
+          - traefik_loadbalancer_ip is defined
+          - traefik_loadbalancer_ip != ""
+        fail_msg: |
+          ERROR: traefik_loadbalancer_ip is not set!
+          
+          Please set it in your inventory file (linux/inventory/hosts-local.ini):
+          
+          [homelab:vars]
+          traefik_loadbalancer_ip=<YOUR_TRAEFIK_IP>
+          
+          This should be the external IP of your Traefik LoadBalancer service.
+          Find it with: kubectl get svc -n traefik
+        success_msg: "traefik_loadbalancer_ip is set to {{ traefik_loadbalancer_ip }}"
+
+    - name: Check that Tailscale is installed
+      ansible.builtin.command: which tailscale
+      register: tailscale_check
+      changed_when: false
+      failed_when: tailscale_check.rc != 0
+
+    - name: Check that Tailscale is running
+      ansible.builtin.command: tailscale status --json
+      register: tailscale_status
+      changed_when: false
+      failed_when: tailscale_status.rc != 0
+
+    - name: Verify Tailscale is authenticated
+      ansible.builtin.assert:
+        that:
+          - "'BackendState' in tailscale_status.stdout"
+          - "(tailscale_status.stdout | from_json).BackendState == 'Running'"
+        fail_msg: |
+          ERROR: Tailscale is not authenticated or running!
+          
+          Please authenticate Tailscale first:
+            ansible-playbook -i linux/inventory/hosts-local.ini \
+              linux/playbooks/tailscale-auth.yml --ask-become-pass --ask-vault-pass
+        success_msg: "Tailscale is running and authenticated"
+
+    # -- 2. Get network information ---------------------------------------------
+    - name: Get server LAN IP
+      ansible.builtin.set_fact:
+        server_ip: "{{ ansible_facts['default_ipv4']['address'] }}"
+
+    - name: Get Tailscale IP
+      ansible.builtin.command: tailscale ip -4
+      register: tailscale_ip_result
+      changed_when: false
+
+    - name: Set Tailscale IP fact
+      ansible.builtin.set_fact:
+        tailscale_ip: "{{ tailscale_ip_result.stdout | trim }}"
+
+    - name: Display network configuration
+      ansible.builtin.debug:
+        msg: |
+          Network configuration:
+            - Server LAN IP: {{ server_ip }}
+            - Tailscale IP: {{ tailscale_ip }}
+            - Traefik LoadBalancer IP: {{ traefik_loadbalancer_ip }}
+          
+          dnsmasq will be configured to:
+            - Listen on: 127.0.0.1, {{ server_ip }}, {{ tailscale_ip }}
+            - Return {{ tailscale_ip }} for all *.{{ homelab_domain }} queries
+
+    # -- 3. Update dnsmasq configuration ----------------------------------------
+    - name: Write dnsmasq configuration for Tailscale remote access
+      ansible.builtin.copy:
+        content: |
+          # Managed by Ansible — dnsmasq-tailscale-setup.yml
+          # Updated for remote access via Tailscale DNS (split-horizon)
+          
+          # Wildcard DNS: all *.{{ homelab_domain }} queries resolve to Tailscale IP
+          # This enables unified URLs whether at home or accessing remotely via Tailscale
+          address=/{{ homelab_domain }}/{{ tailscale_ip }}
+
+          # Upstream DNS servers for everything else
+          server={{ upstream_dns_1 }}
+          server={{ upstream_dns_2 }}
+
+          # Listen on localhost, LAN interface, and Tailscale interface
+          # This allows DNS queries from:
+          #   - Local processes (127.0.0.1)
+          #   - Home network devices ({{ server_ip }})
+          #   - Tailscale-connected devices ({{ tailscale_ip }})
+          listen-address=127.0.0.1,{{ server_ip }},{{ tailscale_ip }}
+          bind-interfaces
+
+          # Don't read /etc/resolv.conf for upstream servers (we set them above)
+          no-resolv
+
+          # Cache DNS queries (default 150, increase for a small LAN)
+          cache-size=1000
+
+          # Log DNS queries (useful for debugging, disable later if noisy)
+          log-queries
+          log-facility=/var/log/dnsmasq.log
+        dest: /etc/dnsmasq.conf
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Restart dnsmasq
+
+    # -- 4. Ensure dnsmasq is running -------------------------------------------
+    - name: Enable and start dnsmasq
+      ansible.builtin.service:
+        name: dnsmasq
+        state: started
+        enabled: true
+
+    # -- 5. Verify configuration ------------------------------------------------
+    - name: Flush handlers to restart dnsmasq
+      ansible.builtin.meta: flush_handlers
+
+    - name: Wait for dnsmasq to be ready
+      ansible.builtin.pause:
+        seconds: 3
+
+    - name: Test wildcard DNS resolution
+      ansible.builtin.command: dig +short test.{{ homelab_domain }} @127.0.0.1
+      register: dns_test
+      changed_when: false
+
+    - name: Display DNS test result
+      ansible.builtin.debug:
+        msg: |
+          DNS test: test.{{ homelab_domain }} resolves to {{ dns_test.stdout | trim }}.
+          {% if dns_test.stdout | trim == tailscale_ip %}
+          ✅ Wildcard DNS is working correctly - resolving to Tailscale IP.
+          {% else %}
+          ⚠️  WARNING: Expected {{ tailscale_ip }} but got {{ dns_test.stdout | trim }}. Check dnsmasq configuration.
+          {% endif %}
+
+    - name: Test DNS resolution via Tailscale IP
+      ansible.builtin.command: dig +short argocd.{{ homelab_domain }} @{{ tailscale_ip }}
+      register: dns_test_tailscale
+      changed_when: false
+
+    - name: Display Tailscale DNS test result
+      ansible.builtin.debug:
+        msg: |
+          DNS test via Tailscale IP: argocd.{{ homelab_domain }} resolves to {{ dns_test_tailscale.stdout | trim }}.
+          {% if dns_test_tailscale.stdout | trim == tailscale_ip %}
+          ✅ DNS queries via Tailscale interface are working correctly.
+          {% else %}
+          ⚠️  WARNING: Expected {{ tailscale_ip }} but got {{ dns_test_tailscale.stdout | trim }}.
+          {% endif %}
+
+    # -- 6. Display next steps --------------------------------------------------
+    - name: Display next steps
+      ansible.builtin.debug:
+        msg: |
+          ✅ dnsmasq is now configured for Tailscale remote access!
+          
+          Next steps:
+          
+          1. Configure Tailscale MagicDNS:
+             - Go to https://login.tailscale.com/admin/dns
+             - Enable "MagicDNS"
+             - Add global nameserver: {{ tailscale_ip }}
+             - Add search domain: {{ homelab_domain }}
+          
+          2. Test from a remote device (connected to Tailscale, NOT on home WiFi):
+             - Test DNS: dig argocd.{{ homelab_domain }}
+             - Test browser: http://argocd.{{ homelab_domain }}
+          
+          3. Verify all services work:
+             - ArgoCD: http://argocd.{{ homelab_domain }}
+             - Longhorn: http://longhorn.{{ homelab_domain }}
+             - Traefik: http://traefik.{{ homelab_domain }}
+             - Jellyfin: http://jellyfin.{{ homelab_domain }}
+             - Nextcloud: http://nextcloud.{{ homelab_domain }}
+          
+          Documentation: See docs/tailscale.md for detailed setup guide.
+          
+          Rollback: ansible-playbook -i linux/inventory/hosts-local.ini \
+                    linux/playbooks/dnsmasq-setup.yml --ask-become-pass
+
+  handlers:
+    - name: Restart dnsmasq
+      ansible.builtin.service:
+        name: dnsmasq
+        state: restarted
