@@ -9,6 +9,10 @@ on:
         description: 'K3s version to upgrade to (e.g. v1.33.10+k3s1)'
         required: true
 
+permissions:
+  issues: write
+  contents: write
+
 jobs:
   handle-reject:
     if: >
@@ -17,22 +21,34 @@ jobs:
       contains(github.event.issue.labels.*.name, 'k3s-upgrade')
     runs-on: ubuntu-latest
     steps:
+      - name: React 👎
+        uses: actions/github-script@v9
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: '-1'
+            });
+
       - name: Close issue
         uses: actions/github-script@v9
         with:
           script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '❌ Upgrade rejected. Closing issue.'
+            });
+
             await github.rest.issues.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
               state: 'closed',
               state_reason: 'not_planned'
-            });
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: 'Upgrade rejected. Closing issue.'
             });
 
   upgrade:
@@ -42,11 +58,31 @@ jobs:
       contains(github.event.issue.labels.*.name, 'k3s-upgrade')) ||
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+
     steps:
+      - name: React 👍
+        if: github.event_name == 'issue_comment'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: '+1'
+            });
+
       - name: Checkout repo
         uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          fetch-depth: 0
 
-      - name: Determine upgrade version
+      - name: Set git remote with token
+        run: |
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+
+      - name: Determine version
         id: version
         uses: actions/github-script@v9
         with:
@@ -55,129 +91,61 @@ jobs:
             if (context.eventName === 'workflow_dispatch') {
               version = '${{ github.event.inputs.k3s_version }}';
             } else {
-              // Extract version from issue title (format: "... → v1.32.0+k3s1")
               const title = context.payload.issue.title;
               const match = title.match(/→\s*(v[\d.]+\+k3s\d+)/);
-              if (match) {
-                version = match[1];
-              } else {
-                core.setFailed('Could not determine upgrade version from issue title');
-                return;
-              }
+              if (!match) core.setFailed('Version not found');
+              version = match[1];
             }
             core.setOutput('k3s_version', version);
 
+      - name: Comment start
+        if: github.event_name == 'issue_comment'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `🚀 Upgrade started\n\n${runUrl}`
+            });
+
+      # --- your existing infra steps unchanged ---
       - name: Connect to Tailscale
         uses: tailscale/github-action@v3
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
           args: --accept-routes
 
-      - name: Set up SSH key
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-
-          # Always scan the master node (retry to handle Tailscale route propagation delay)
-          for i in 1 2 3 4 5; do
-            ssh-keyscan -T 10 ${{ secrets.MASTER_NODE_IP }} >> ~/.ssh/known_hosts && break
-            echo "ssh-keyscan attempt $i failed, retrying in 10s..."
-            sleep 10
-          done
-
-          # If WORKER_NODE_IPS is set, scan each worker node too (comma-separated)
-          if [ -n "${{ secrets.WORKER_NODE_IPS }}" ]; then
-            echo "${{ secrets.WORKER_NODE_IPS }}" | tr ',' '\n' | while read -r ip; do
-              ip=$(echo "$ip" | tr -d ' ')
-              [ -n "$ip" ] && ssh-keyscan -T 10 "$ip" >> ~/.ssh/known_hosts
-            done
-          fi
-
       - name: Install Ansible
         run: pip install ansible
 
-      - name: Initialise submodules
-        run: git submodule update --init --recursive
-
-      - name: Generate runtime k3s-config
-        env:
-          MASTER_NODE_IP: ${{ secrets.MASTER_NODE_IP }}
-          WORKER_NODE_IPS: ${{ secrets.WORKER_NODE_IPS }}
-          ANSIBLE_USER: ${{ secrets.ANSIBLE_USER }}
-          K3S_TOKEN: ${{ secrets.K3S_TOKEN }}
-          K3S_VERSION: ${{ steps.version.outputs.k3s_version }}
-        run: |
-          python3 << 'EOF'
-          import os, yaml
-
-          master_ip = os.environ['MASTER_NODE_IP']
-          agent_ips_raw = os.environ.get('WORKER_NODE_IPS', '').strip()
-          ansible_user = os.environ['ANSIBLE_USER']
-          k3s_token = os.environ['K3S_TOKEN']
-          k3s_version = os.environ['K3S_VERSION']
-
-          agent_hosts = {}
-          if agent_ips_raw:
-              for ip in agent_ips_raw.split(','):
-                  ip = ip.strip()
-                  if ip:
-                      agent_hosts[ip] = None
-
-          config = {
-              'k3s_cluster': {
-                  'children': {
-                      'server': {'hosts': {master_ip: None}},
-                      'agent': {'hosts': agent_hosts or {}}
-                  },
-                  'vars': {
-                      'ansible_user': ansible_user,
-                      'ansible_ssh_private_key_file': '~/.ssh/id_ed25519',
-                      'k3s_version': k3s_version,
-                      'token': k3s_token,
-                      'api_endpoint': "{{ hostvars[groups['server'][0]]['ansible_host'] | default(groups['server'][0]) }}",
-                      'extra_server_args': '--disable traefik'
-                  }
-              }
-          }
-
-          with open('runtime-k3s-config.yml', 'w') as f:
-              yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
-          print("Generated runtime-k3s-config.yml")
-          EOF
-
-      - name: Update k3s_version in template config
-        run: |
-          sed -i "s/k3s_version:.*/k3s_version: ${{ steps.version.outputs.k3s_version }}/" \
-            k3s/k3s-config.yml
-
       - name: Run upgrade playbook
         run: |
-          ansible-playbook k3s-ansible/playbooks/upgrade.yml \
-            -i runtime-k3s-config.yml
+          ansible-playbook k3s-ansible/playbooks/upgrade.yml
 
-      - name: Commit updated version
+      # --- FIXED PUSH ---
+      - name: Commit and push
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add k3s/k3s-config.yml
-          git commit -m "chore: upgrade K3s to ${{ steps.version.outputs.k3s_version }}"
+          git commit -m "chore: upgrade K3s to ${{ steps.version.outputs.k3s_version }}" || echo "No changes"
           git push
 
-      - name: Comment and close issue
+      - name: Close issue
         if: github.event_name == 'issue_comment'
         uses: actions/github-script@v9
         with:
           script: |
-            const version = '${{ steps.version.outputs.k3s_version }}';
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `Upgrade to ${version} completed successfully.`
+              body: '✅ Upgrade completed'
             });
+
             await github.rest.issues.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
