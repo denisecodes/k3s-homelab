@@ -119,7 +119,7 @@ jobs:
             - Comment \`/upgrade\` to trigger the upgrade to ${recommended}
             - Comment \`/reject\` to close this issue without upgrading`;
 
-            github.rest.issues.create({
+            await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: `K3s upgrade available: ${current} → ${recommended}`,
